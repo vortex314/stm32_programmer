@@ -26,16 +26,18 @@ int tolower(int a) {
 Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
 LedBlinker ledBlinker;
 TcpServer tcpServer(23);
+
 Stm32 stm32;
 mDNS mdns;
 
 extern "C" void setup() {
-	Serial.begin(115200, SerialConfig::SERIAL_8E1);
+	Serial.begin(115200);
+	Serial1.begin(115200, SerialConfig::SERIAL_8E1);
 	wifi.setup();
 	ledBlinker.setup(wifi.ref());
 	tcpServer.setup(&stm32);
 	mdns.setup(&wifi);
-
+	Actor::pub(INIT);
 	return;
 }
 

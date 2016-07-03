@@ -11,22 +11,23 @@
 #include <Actor.h>
 #include <ESP8266WiFi.h>
 
-class Wifi : public Actor {
+class Wifi: public Actor {
 	bool _connected;
 	const char* _ssid;
 	const char* _password;
 	enum {
-		DISCONNECTED,CONNECTED
+		DISCONNECTED, CONNECTED
 	} _state;
 public:
-	Wifi(const char* ssid,const char* password);
+	Wifi(const char* ssid, const char* password);
 	virtual ~Wifi();
-	 void  setup();
-	 void loop();
-	 inline bool connected(){
-		 return _connected;
-	 }
-	 void state(uint32_t st);
+	void setup();
+	void loop();
+	void on(Header);
+	inline bool connected() {
+		return _connected;
+	}
+	void state(uint32_t st);
 
 };
 

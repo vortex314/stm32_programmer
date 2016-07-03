@@ -86,12 +86,19 @@ void Actor::eventLoop() {
 	for (int i = 1; i < _count; i++) {
 		_actors[i]->loop();
 		if (_actors[i]->timeout()) {
-			_actors[i]->on(Header(_actors[i]->me(),_actors[i]->me(),TIMEOUT,0));
+			_actors[i]->timeout(UINT32_MAX);
+			_actors[i]->on(
+					Header(_actors[i]->me(), _actors[i]->me(), TIMEOUT, 0));
 		}
 	}
 }
 void Actor::publish(Event ev) {
 	Header h((ActorRef) 0, me(), ev, 0);
+	_queue.put(h);
+}
+
+void Actor::pub(Event ev) {
+	Header h((ActorRef) 0, (ActorRef) 0, ev, 0);
 	_queue.put(h);
 }
 

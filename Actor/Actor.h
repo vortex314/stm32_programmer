@@ -166,6 +166,7 @@ public:
 	}
 	static void eventLoop();
 	void publish(Event ev) ;
+	static void pub(Event ev);
 	static Actor& actor(ActorRef ref) {
 		return *_actors[ref];
 	}

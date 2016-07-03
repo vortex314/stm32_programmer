@@ -44,3 +44,7 @@ void Wifi::loop() {
 	state(WiFi.status() == WL_CONNECTED ? CONNECTED : DISCONNECTED);
 }
 
+void Wifi::on(Header hdr) {
+
+}
+
