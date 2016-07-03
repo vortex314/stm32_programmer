@@ -37,6 +37,7 @@ class Stm32 : public Actor ,public TcpClient {
 	Bytes _rxd;
 	int _id;
 	uint32_t _lengthToread;
+	uint32_t _error;
 	enum State { S_INIT,S_READY,S_EXECUTING } _state;
 	enum Boot0Mode { USER,BOOTLOADER} ;
 	bool receive();
@@ -44,6 +45,7 @@ class Stm32 : public Actor ,public TcpClient {
 	void boot0(Boot0Mode );
 	void reply(int cmd,int id,int error,Bytes& data);
 	void init();
+	void engine();
 public:
 	Stm32();
 	virtual ~Stm32();
