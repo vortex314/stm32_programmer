@@ -23,7 +23,7 @@ mDNS::~mDNS() {
 void mDNS::on(Header hdr) {
 	if (hdr.is(_wifi->ref(), REPLY(CONNECT))) {
 		if (!MDNS.begin("esp8266")) {
-			Serial.println("Error setting up MDNS responder!");
+			Log.printf("Error setting up MDNS responder!");
 		}
 	}
 }

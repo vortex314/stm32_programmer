@@ -10,6 +10,7 @@
 #include <Stm32.h>
 #include <mDNS.h>
 #include <ctype.h>
+#include <uart.h>
 int islower(int a) {
 	if (a >= 'a' || a <= 'z')
 		return true;
@@ -31,8 +32,8 @@ Stm32 stm32;
 mDNS mdns;
 
 extern "C" void setup() {
-	Serial.begin(115200);
-	Serial1.begin(115200, SerialConfig::SERIAL_8E1);
+	Serial.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
+	Serial1.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_TX_ONLY);
 	wifi.setup();
 	ledBlinker.setup(wifi.ref());
 	tcpServer.setup(&stm32);

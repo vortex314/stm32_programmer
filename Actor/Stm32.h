@@ -16,20 +16,20 @@
 #include <Cbor.h>
 #include <Slip.h>
 
-class SerialPort : public Actor {
+class SerialPort: public Actor {
 public:
-	SerialPort() : Actor("SerialPort") {
+	SerialPort() :
+			Actor("SerialPort") {
 
 	}
 	void loop() {
-		if ( Serial.available())
+		if (Serial.available()) {
 			publish(RXD);
+		}
 	}
 };
 
-
-class Stm32 : public Actor ,public TcpClient {
-	WiFiClient _tcp;
+class Stm32: public Actor, public TcpClient {
 	ActorRef _port;
 	Slip _slip;
 	Cbor _cbor;
@@ -38,20 +38,38 @@ class Stm32 : public Actor ,public TcpClient {
 	int _id;
 	uint32_t _lengthToread;
 	uint32_t _error;
-	enum State { S_INIT,S_READY,S_EXECUTING } _state;
-	enum Boot0Mode { USER,BOOTLOADER} ;
-	bool receive();
+	bool _connected;
+	enum State {
+		S_INIT, S_READY, S_EXECUTING
+	} _state;
+	enum Boot0Mode {
+		USER, BOOTLOADER
+	};bool receive();
 	void reset();
-	void boot0(Boot0Mode );
-	void reply(int cmd,int id,int error,Bytes& data);
+	void boot0(Boot0Mode);
 	void init();
 	void engine();
+	void logToTcp();
+	void logToSerial();
 public:
+	WiFiClient _tcp;
+	enum Cmd {
+		PING, EXEC, RESET, MODE_BOOTLOADER, MODE_USER, STM32_OUTPUT, LOG_OUTPUT
+	};
+	enum Op {
+		X_WAIT_ACK = 0x40,
+		X_SEND = 0x41,
+		X_RECV = 0x42,
+		X_RECV_VAR = 0x43,
+		X_RECV_VAR_MIN_1 = 0x44
+	};
+	void sendTcp(int cmd, int id, int error, Bytes& data);
 	Stm32();
 	virtual ~Stm32();
 	void on(Header);
 	void loop();
 	void setup(WiFiServer* srv);
+	bool connected();
 };
 
 #endif /* STM32_H_ */
