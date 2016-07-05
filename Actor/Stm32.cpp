@@ -35,6 +35,7 @@ bool Stm32::connected() {
 Cbor cborLog(400);
 
 void sendLogToTcp(char* data, uint32_t length) {
+
 	if (_gStm32 && _gStm32->connected()) {
 		cborLog.clear();
 		cborLog.add(Stm32::Cmd::LOG_OUTPUT);
@@ -71,7 +72,6 @@ void Stm32::setup(WiFiServer* server) {
 		LOGF(" too many connections ");
 		serverClient.stop();
 	}
-	sendLogToTcp("LogStart", 8);
 	Log.setOutput(sendLogToTcp);
 	serialSwap();
 }
@@ -179,6 +179,7 @@ void Stm32::sendTcp(int cmd, int id, int error, Bytes& data) {
 	_tcp.write(_slip.data(), _slip.length());
 	_tcp.flush();
 	_slip.reset();
+	yield();
 }
 
 void Stm32::engine() {
@@ -187,7 +188,6 @@ void Stm32::engine() {
 	//					Serial.swap();
 	_scenario.offset(0);
 	uint8_t instr;
-	_error = E_OK;
 	_rxd.clear();
 	while (Serial.available()) { // flush read buffer
 		_rxd.write(Serial.read());
@@ -308,6 +308,7 @@ void Stm32::on(Header hdr) {
 	if (_tcp.available()) {
 		if (receive()) {
 			int cmd;
+			_error=E_OK;
 			_cbor.offset(0);
 			if (_cbor.get(cmd) && _cbor.get(_id)) {
 				LOGF(" cmd : %d , id : %d ", cmd, _id);
@@ -329,14 +330,20 @@ void Stm32::on(Header hdr) {
 					LOGF(" scenario : %d", _scenario.length());
 					engine();
 				}
+			} else {
+				LOGF(" no cbor data found ");
 			}
 			sendTcp(cmd, _id, _error, _rxd);
+			_rxd.clear();
+		} else {
+			LOGF(" incomplete data ");
 		}
 	}
 	if (Serial.available()) {
 		while (Serial.available())
 			_rxd.write(Serial.read());
 		LOGF(" received : %s", _rxd.toHex(line.clear()));
+		_rxd.clear();
 	}
 }
 
