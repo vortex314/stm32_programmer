@@ -14,7 +14,7 @@
 
 Str line(100);
 
-Stm32* _gStm32;
+Stm32* Stm32::_gStm32 = 0;
 
 Stm32::Stm32() :
 		Actor("Stm32"), _slip(300), _cbor(300), _scenario(300), _rxd(300) {
@@ -36,7 +36,7 @@ Cbor cborLog(400);
 
 void sendLogToTcp(char* data, uint32_t length) {
 
-	if (_gStm32 && _gStm32->connected()) {
+	if (Stm32::_gStm32 && Stm32::_gStm32->connected()) {
 		cborLog.clear();
 		cborLog.add(Stm32::Cmd::LOG_OUTPUT);
 		cborLog.add(0);
@@ -45,35 +45,28 @@ void sendLogToTcp(char* data, uint32_t length) {
 		Slip::AddCrc(cborLog);
 		Slip::Encode(cborLog);
 		Slip::Frame(cborLog);
-		_gStm32->_tcp.write(cborLog.data(), cborLog.length());
-		_gStm32->_tcp.flush();
+		Stm32::_gStm32->_tcp.write(cborLog.data(), cborLog.length());
+		Stm32::_gStm32->_tcp.flush();
 		yield();
 	}
 }
 
-void serialSwap() {
-	static bool swapped = false;
-	if (!swapped) {
-		Serial.swap();
-		swapped = true;
-	}
-}
+
 
 void Stm32::setup(WiFiServer* server) {
 	WiFiClient serverClient = server->available();
 	if (!_tcp.connected()) {
 		_tcp.stop();
 		_tcp = serverClient;
-		LOGF(" serverClient connected : %s",
-				_tcp.remoteIP().toString().c_str());
+		LOGF(" serverClient connected : %s", _tcp.remoteIP().toString().c_str());
 		publish(REPLY(Event::CONNECT));
 
 	} else {
 		LOGF(" too many connections ");
 		serverClient.stop();
 	}
-	Log.setOutput(sendLogToTcp);
-	serialSwap();
+//	Log.setOutput(sendLogToTcp);
+//	serialSwap();
 }
 
 void RXD2() {
@@ -302,39 +295,48 @@ void Stm32::engine() {
 	END: return;
 }
 
+void Stm32::handle(Cbor& req, Cbor& reply) {
+	int cmd;
+	_error = E_OK;
+	req.offset(0);
+	if (req.get(cmd) && req.get(_id)) {
+		LOGF(" cmd : %d , id : %d ", cmd, _id);
+		if (cmd == Cmd::PING) {
+			// just echo
+		} else if (cmd == Cmd::RESET) {
+
+			reset();
+
+		} else if (cmd == Cmd::MODE_BOOTLOADER) {
+
+			boot0(Boot0Mode::BOOTLOADER);
+
+		} else if (cmd == Cmd::MODE_USER) {
+
+			boot0(Boot0Mode::USER);
+
+		} else if (cmd == Cmd::EXEC && req.get(_scenario)) {
+			LOGF(" scenario : %d", _scenario.length());
+			engine();
+		}
+	} else {
+		LOGF(" no cbor data found ");
+	}
+	reply.clear();
+	reply.add(cmd);
+	reply.add(_id);
+	reply.add(_error);
+	reply.add(_rxd);
+	_rxd.clear();
+}
+
 void Stm32::on(Header hdr) {
 	if (hdr.is(INIT))
 		init();
+	timeout(10);
 	if (_tcp.available()) {
 		if (receive()) {
-			int cmd;
-			_error=E_OK;
-			_cbor.offset(0);
-			if (_cbor.get(cmd) && _cbor.get(_id)) {
-				LOGF(" cmd : %d , id : %d ", cmd, _id);
-				if (cmd == Cmd::PING) {
-					// just echo
-				} else if (cmd == Cmd::RESET) {
-
-					reset();
-
-				} else if (cmd == Cmd::MODE_BOOTLOADER) {
-
-					boot0(Boot0Mode::BOOTLOADER);
-
-				} else if (cmd == Cmd::MODE_USER) {
-
-					boot0(Boot0Mode::USER);
-
-				} else if (cmd == Cmd::EXEC && _cbor.get(_scenario)) {
-					LOGF(" scenario : %d", _scenario.length());
-					engine();
-				}
-			} else {
-				LOGF(" no cbor data found ");
-			}
-			sendTcp(cmd, _id, _error, _rxd);
-			_rxd.clear();
+			handle(_cbor, _cbor);
 		} else {
 			LOGF(" incomplete data ");
 		}

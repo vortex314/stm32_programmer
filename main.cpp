@@ -6,6 +6,7 @@
 #include <LedBlinker.h>
 #include <TcpServer.h>
 #include <TcpClient.h>
+#include <UdpServer.h>
 #include <ESP8266mDNS.h>
 #include <Stm32.h>
 #include <mDNS.h>
@@ -27,6 +28,7 @@ int tolower(int a) {
 Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
 LedBlinker ledBlinker;
 TcpServer tcpServer(23);
+UdpServer udpServer(3881);
 
 Stm32 stm32;
 mDNS mdns;
@@ -37,6 +39,7 @@ extern "C" void setup() {
 	wifi.setup();
 	ledBlinker.setup(wifi.ref());
 	tcpServer.setup(&stm32);
+	udpServer.setup();
 	mdns.setup(&wifi);
 	Actor::pub(INIT);
 	return;

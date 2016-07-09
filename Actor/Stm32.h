@@ -30,6 +30,7 @@ public:
 };
 
 class Stm32: public Actor, public TcpClient {
+
 	ActorRef _port;
 	Slip _slip;
 	Cbor _cbor;
@@ -37,8 +38,7 @@ class Stm32: public Actor, public TcpClient {
 	Bytes _rxd;
 	int _id;
 	uint32_t _lengthToread;
-	uint32_t _error;
-	bool _connected;
+	uint32_t _error;bool _connected;
 	enum State {
 		S_INIT, S_READY, S_EXECUTING
 	} _state;
@@ -52,6 +52,7 @@ class Stm32: public Actor, public TcpClient {
 	void logToTcp();
 	void logToSerial();
 public:
+	static Stm32* _gStm32;
 	WiFiClient _tcp;
 	enum Cmd {
 		PING, EXEC, RESET, MODE_BOOTLOADER, MODE_USER, STM32_OUTPUT, LOG_OUTPUT
@@ -63,13 +64,13 @@ public:
 		X_RECV_VAR = 0x43,
 		X_RECV_VAR_MIN_1 = 0x44
 	};
+	void handle(Cbor& req, Cbor& reply);
 	void sendTcp(int cmd, int id, int error, Bytes& data);
 	Stm32();
 	virtual ~Stm32();
 	void on(Header);
 	void loop();
-	void setup(WiFiServer* srv);
-	bool connected();
+	void setup(WiFiServer* srv);bool connected();
 };
 
 #endif /* STM32_H_ */
