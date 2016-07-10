@@ -35,7 +35,7 @@ void serialSwap() {
 
 void logToSyslog(char* data, uint32_t length) {
 	WiFiUDP udp;
-	IPAddress ip = IPAddress(192, 168, 0, 223);
+	IPAddress ip = IPAddress(192, 168, 0, 223);	// pcacer
 	udp.beginPacket(ip, 514);
 	// <14> : user level = 1 *8 + informational = 6
 	uint32_t millisec = millis();
@@ -74,9 +74,10 @@ void UdpServer::on(Header hdr) {
 
 void UdpServer::send(IPAddress ip, uint16_t port, uint8_t* data,
 		uint16_t length) {
-	beginPacket(ip, port);
-	write(data, length);
-	endPacket();
+	WiFiUDP udp;
+	udp.beginPacket(ip, port);
+	udp.write(data, length);
+	udp.endPacket();
 }
 #include <Stm32.h>
 
@@ -93,7 +94,7 @@ void UdpServer::loop() {
 		Stm32::_gStm32->handle(_cbor_request, _cbor_response);
 		LOGF(" udp[%d] send to %s:%d ", _cbor_response.length(),
 				_remote_ip.toString().c_str(), _remote_port);
-		send(_remote_port, _remote_ip, _cbor_response.data(),
+		send(_remote_ip,_remote_port,  _cbor_response.data(),
 				_cbor_response.length());
 	}
 }
