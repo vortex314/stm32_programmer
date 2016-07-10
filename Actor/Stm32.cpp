@@ -99,6 +99,8 @@ void Stm32::reset() {
 	digitalWrite(PIN_RESET, 0);
 	delay(10);
 	digitalWrite(PIN_RESET, 1);
+	delay(10);
+	Serial.write(0x7F);	// send sync for bootloader
 }
 
 void Stm32::boot0(Boot0Mode bm) {
@@ -155,7 +157,7 @@ bool Stm32::receive() {
 	return false;
 }
 
-#define DELAY 10
+#define DELAY 100
 
 void Stm32::sendTcp(int cmd, int id, int error, Bytes& data) {
 	_cbor.clear();
@@ -238,13 +240,10 @@ void Stm32::engine() {
 				_error = ENODATA;
 				goto END;
 			}
-			_lengthToread = _scenario.read();
+			_lengthToread = _scenario.read() +1;
 			timeout(DELAY);
 			while (_lengthToread && _error == E_OK) {
 				if (timeout()) {
-					pinMode(2, INPUT);
-					pinMode(13, FUNCTION_4); // user RX(0) for input from stm32, use TX(1) for output to stm32
-
 					_error = ETIMEDOUT;
 					goto END;
 				}
@@ -275,7 +274,7 @@ void Stm32::engine() {
 
 			}
 			LOGF("X_RECV_VAR : %d", b);
-			_lengthToread = b;
+			_lengthToread = b+1;
 			timeout(DELAY);
 			while (_lengthToread && _error == E_OK) {
 				if (timeout()) {
