@@ -31,6 +31,7 @@ LIBS ?= $(ESP_LIBS)/Wire \
         ../Common/src \
         ../Common/inc \
         ./Actor \
+       $(ESP_LIBS)/EEPROM \
        $(ESP_LIBS)/ESP8266WiFi \
        $(ESP_LIBS)/ESP8266mDNS \
 #       $(ESP_LIBS)/ESP8266WebServer \
