@@ -11,16 +11,17 @@
 #include <Actor.h>
 #include <Arduino.h>
 
-class LedBlinker : public Actor {
-	uint32_t _interval;
+class LedBlinker: public Actor {
+	uint32_t _interval; //
 	bool _isOn;
-	ActorRef _src;
 public:
 	LedBlinker();
 	virtual ~LedBlinker();
+	void blinkFast(Header);
+	void blinkSlow(Header);
 	void on(Header);
 	void loop();
-	void setup(ActorRef src);
+	void init();
 };
 
 #endif /* LEDBLINKER_H_ */

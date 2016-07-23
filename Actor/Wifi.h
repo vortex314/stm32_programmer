@@ -21,9 +21,8 @@ class Wifi: public Actor {
 public:
 	Wifi(const char* ssid, const char* password);
 	virtual ~Wifi();
-	void setup();
+	void init();
 	void loop();
-	void on(Header);
 	inline bool connected() {
 		return _connected;
 	}

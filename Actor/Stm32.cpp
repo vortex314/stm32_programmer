@@ -11,223 +11,107 @@
 #define PIN_BOOT0 5 // GPIO5 D1
 #define ACK 0x79
 #define NACK 0x1F
+#define DELAY 100
 
-Str line(100);
+bool Stm32::_alt_serial = false;
+uint64_t Stm32::_timeout = 0;
+bool Stm32::_boot0 = true;
 
-Stm32* Stm32::_gStm32 = 0;
-
-Stm32::Stm32() :
-		Actor("Stm32"), _slip(300), _cbor(300), _scenario(300), _rxd(300) {
-	Actor * actor = new SerialPort();
-	_port = actor->ref();
-	state(S_INIT);
-	_gStm32 = this;
-	_connected = false;
-}
-
-Stm32::~Stm32() {
-
-}
-
-bool Stm32::connected() {
-	return _tcp.connected();
-}
-Cbor cborLog(400);
-
-void sendLogToTcp(char* data, uint32_t length) {
-
-	if (Stm32::_gStm32 && Stm32::_gStm32->connected()) {
-		cborLog.clear();
-		cborLog.add(Stm32::Cmd::LOG_OUTPUT);
-		cborLog.add(0);
-		cborLog.add(0);
-		cborLog.add((uint8_t*) data, length < 256 ? length : 256);
-		Slip::AddCrc(cborLog);
-		Slip::Encode(cborLog);
-		Slip::Frame(cborLog);
-		Stm32::_gStm32->_tcp.write(cborLog.data(), cborLog.length());
-		Stm32::_gStm32->_tcp.flush();
-		yield();
-	}
-}
-
-
-
-void Stm32::setup(WiFiServer* server) {
-	WiFiClient serverClient = server->available();
-	if (!_tcp.connected()) {
-		_tcp.stop();
-		_tcp = serverClient;
-		LOGF(" serverClient connected : %s", _tcp.remoteIP().toString().c_str());
-		publish(REPLY(Event::CONNECT));
-
-	} else {
-		LOGF(" too many connections ");
-		serverClient.stop();
-	}
-//	Log.setOutput(sendLogToTcp);
-//	serialSwap();
-}
-
-void RXD2() {
+Erc Stm32::setAltSerial(bool flag) {
+	if (_alt_serial == flag)
+		return E_OK;
+	_alt_serial = flag;
 	Serial.swap();
-	return;
-	pinMode(3, INPUT);
-	pinMode(13, FUNCTION_4); // user UART0-RXD2-D7-GPIO13 for input from stm32, use UART1-TXD1-D4-GPIO2  for output to stm32
+	return E_OK;
 }
 
-void RXD0() {
-	Serial.swap();
-	return;
-	pinMode(3, SPECIAL);
-	pinMode(13, INPUT); // user UART0-RXD0-RXD-GPIO3-Serial0 for input from stm32, use UART1-TXD1-D4-GPIO2-Serial1  for output to stm32
+Erc Stm32::setBoot0(bool flag) {
+	if (_boot0 == flag)
+		return E_OK;
+	digitalWrite(PIN_BOOT0, flag);	// 1 : bootloader mode, 0: flash run
+	_boot0 = flag;
+	return E_OK;
 }
 
-void Stm32::init() {
-
+Erc Stm32::begin() {
 	pinMode(PIN_RESET, OUTPUT);
 	digitalWrite(PIN_RESET, 1);
 	pinMode(PIN_BOOT0, OUTPUT);
-	boot0(USER);
-	reset();
-//	Log.setOutput(sendLogToTcp);
-//	Serial.swap();
+	setBoot0(true);
+//	setAltSerial(true);
 }
 
-void Stm32::reset() {
-	LOGF("RESET");
+Erc Stm32::reset() {
 	digitalWrite(PIN_RESET, 0);
 	delay(10);
 	digitalWrite(PIN_RESET, 1);
 	delay(10);
 	Serial.write(0x7F);	// send sync for bootloader
+	return E_OK;
 }
 
-void Stm32::boot0(Boot0Mode bm) {
-	if (bm == BOOTLOADER) {
-		LOGF("MODE_BOOTLOADER");
-		digitalWrite(PIN_BOOT0, 1);
-	} else if (bm == USER) {
-		LOGF("MODE_USER");
-		digitalWrite(PIN_BOOT0, 0);
-	}
+bool Stm32::timeout() {
+	return _timeout < millis();
 }
 
-void Stm32::loop() {
-	if (_tcp.available()) {
-		publish(RXD);
-	}
+void Stm32::timeout(uint32_t delta) {
+	_timeout = millis() + delta;
 }
 
-bool Stm32::receive() {
-	Str line(100);
-
-	while (_tcp.available()) {
-		uint8_t b = _tcp.read();
-		if (_slip.fill(b)) {
-			_slip.toHex(line.clear());
-			LOGF(" slip : %s ", line.c_str());
-//				uint16_t crc = Slip::Fletcher16(_slip.data(), _slip.length()-2);
-//				LOGF(" crc calc : %X ",crc);
-			if (_slip.isGoodCrc()) {
-				_slip.removeCrc();
-				_slip.offset(0);
-				_cbor.clear();
-				_cbor.write(&_slip);
-				_cbor.offset(0);
-				_cbor.toHex(line.clear());
-				LOGF(" cbor : %s ", line.c_str());
-				int i, id;
-				Bytes bytes(0);
-				if (_cbor.get(i) && _cbor.get(id)) {
-					_cbor.offset(0);
-					return true;
-//					bytes.toHex(line.clear());
-//				LOGF(" cmd=%d , id=%d   ", i, id);
-//					LOGF(" data : %s ", line.c_str());
-				} else {
-					LOGF(" cbor read fails ");
-				}
-			} else {
-				LOGF(" bad CRC ");
-			}
-			_slip.reset();
-		}
-	}
-	return false;
-}
-
-#define DELAY 100
-
-void Stm32::sendTcp(int cmd, int id, int error, Bytes& data) {
-	_cbor.clear();
-	_cbor.add(cmd);
-	_cbor.add(id);
-	_cbor.add(error);
-	_cbor.add(data);
-
-	LOGF(" reply cbor %s", _cbor.toHex(line.clear()));
-	_slip.write(&_cbor);
-	_slip.addCrc();
-	_slip.encode();
-	_slip.frame();
-	_tcp.write(_slip.data(), _slip.length());
-	_tcp.flush();
-	_slip.reset();
-	yield();
-}
-
-void Stm32::engine() {
-	//					Log::disable();
-	//					delay(10);
-	//					Serial.swap();
-	_scenario.offset(0);
+Erc Stm32::engine(Bytes& reply, Bytes& req) {
+	Erc error;
+	req.offset(0);
 	uint8_t instr;
-	_rxd.clear();
+	uint16_t lengthToRead;
+	reply.clear();
 	while (Serial.available()) { // flush read buffer
-		_rxd.write(Serial.read());
+		reply.write(Serial.read());
 	}
 
-	LOGF(" scenario %s", _scenario.toHex(line.clear()));
-//	Serial1.write(_scenario.data(),_scenario.length());
+//	LOGF(" scenario %s", req.toHex(line.clear()));
+//	Serial1.write(req.data(),req.length());
 
-	while (_scenario.hasData() && _error == E_OK) {
+	while (req.hasData() && error == E_OK) {
 
-		instr = _scenario.read();
+		instr = req.read();
 
 		switch (instr) {
+		case X_RESET: {
+			LOGF("X_RESET");
+			reset();
+			break;
+		}
 		case X_WAIT_ACK: {
 			LOGF("X_WAIT_ACK");
-			timeout(DELAY);
-			while (1) {
+			timeout(10);
+			while (true) {
 				if (timeout()) {
-					_error = ETIMEDOUT;
+					error = ETIMEDOUT;
 					goto END;
 				};
 				if (Serial.available()) {
 					uint8_t b;
 					while (Serial.available()) {
-						_rxd.write(b = Serial.read());
+						reply.write(b = Serial.read());
 
 					}
 					if (b == ACK)
 						break;
 				}
-				yield();
 			}
 			break;
 		}
 		case X_SEND: {
 
 			LOGF("X_SEND");
-			if (!_scenario.hasData()) {
-				_error = ENODATA;
+			if (!req.hasData()) {
+				error = ENODATA;
 				goto END;
 			}
-			int length = _scenario.read() + 1;
+			int length = req.read() + 1;
 			LOGF("X_SEND %d", length);
-			while (length && _scenario.hasData()) {
-				Serial.write(_scenario.read());
+			while (length && req.hasData()) {
+				Serial.write(req.read());
 				length--;
 			}
 			break;
@@ -236,22 +120,21 @@ void Stm32::engine() {
 		case X_RECV: {
 
 			LOGF("X_RECV");
-			if (!_scenario.hasData()) {
-				_error = ENODATA;
+			if (!req.hasData()) {
+				error = ENODATA;
 				goto END;
 			}
-			_lengthToread = _scenario.read() +1;
+			lengthToRead = req.read() + 1;
 			timeout(DELAY);
-			while (_lengthToread && _error == E_OK) {
+			while (lengthToRead && error == E_OK) {
 				if (timeout()) {
-					_error = ETIMEDOUT;
+					error = ETIMEDOUT;
 					goto END;
 				}
 				while (Serial.available()) {
-					_rxd.write(Serial.read());
-					_lengthToread--;
+					reply.write(Serial.read());
+					lengthToRead--;
 				}
-				yield();
 			}
 			break;
 
@@ -263,88 +146,37 @@ void Stm32::engine() {
 			timeout(DELAY);
 			while (1) {
 				if (timeout()) {
-					_error = ETIMEDOUT;
+					error = ETIMEDOUT;
 					goto END;
 				}
 				if (Serial.available()) {
-					_rxd.write(b = Serial.read());
+					reply.write(b = Serial.read());
 					break;
 				}
-				yield();
-
 			}
 			LOGF("X_RECV_VAR : %d", b);
-			_lengthToread = b+1;
+			lengthToRead = b + 1;
 			timeout(DELAY);
-			while (_lengthToread && _error == E_OK) {
+			while (lengthToRead && error == E_OK) {
 				if (timeout()) {
-					_error = ETIMEDOUT;
+					error = ETIMEDOUT;
 					goto END;
 				}
 				while (Serial.available()) {
-					_rxd.write(Serial.read());
-					_lengthToread--;
+					reply.write(Serial.read());
+					lengthToRead--;
 				}
-				yield();
 			}
+			break;
+		}
+		default: {
+			LOGF(" UKNOWN COMMAND");
+			error = EINVAL;
+			goto END;
 			break;
 		}
 		}
 	}
-	END: return;
-}
-
-void Stm32::handle(Cbor& req, Cbor& reply) {
-	int cmd;
-	_error = E_OK;
-	req.offset(0);
-	if (req.get(cmd) && req.get(_id)) {
-		LOGF(" cmd : %d , id : %d ", cmd, _id);
-		if (cmd == Cmd::PING) {
-			// just echo
-		} else if (cmd == Cmd::RESET) {
-
-			reset();
-
-		} else if (cmd == Cmd::MODE_BOOTLOADER) {
-
-			boot0(Boot0Mode::BOOTLOADER);
-
-		} else if (cmd == Cmd::MODE_USER) {
-
-			boot0(Boot0Mode::USER);
-
-		} else if (cmd == Cmd::EXEC && req.get(_scenario)) {
-			LOGF(" scenario : %d", _scenario.length());
-			engine();
-		}
-	} else {
-		LOGF(" no cbor data found ");
-	}
-	reply.clear();
-	reply.add(cmd);
-	reply.add(_id);
-	reply.add(_error);
-	reply.add(_rxd);
-	_rxd.clear();
-}
-
-void Stm32::on(Header hdr) {
-	if (hdr.is(INIT))
-		init();
-	timeout(10);
-	if (_tcp.available()) {
-		if (receive()) {
-			handle(_cbor, _cbor);
-		} else {
-			LOGF(" incomplete data ");
-		}
-	}
-	if (Serial.available()) {
-		while (Serial.available())
-			_rxd.write(Serial.read());
-		LOGF(" received : %s", _rxd.toHex(line.clear()));
-		_rxd.clear();
-	}
+	END: return error;
 }
 

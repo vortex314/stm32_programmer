@@ -24,27 +24,23 @@ void Wifi::state(uint32_t st) {
 			_connected = true;
 			LOGF(" Wifi Connected.");
 			LOGF(" ip : %s ", WiFi.localIP().toString().c_str());
-			publish(REPLY(CONNECT));
+			publish(CONNECT);
 		} else {
 			_connected = false;
-			publish(REPLY(DISCONNECT));
 			LOGF(" Wifi Disconnected.");
+			publish(DISCONNECT);
 		}
 	}
 }
 
-void Wifi::setup() {
+void Wifi::init() {
 	WiFi.begin(_ssid, _password);
 	LOGF("Connecting to %s ", _ssid);
 	WiFi.enableSTA(true);
-	state(DISCONNECTED);
 }
 
 void Wifi::loop() {
 	state(WiFi.status() == WL_CONNECTED ? CONNECTED : DISCONNECTED);
 }
 
-void Wifi::on(Header hdr) {
-
-}
 

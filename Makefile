@@ -21,7 +21,7 @@
 ESP_LIBS ?= /home/lieven/workspace/Arduino/libraries
 ESPTOOL = ../esp8266_tools/tools/esptool.py #//TODO
 RESET = ../esp8266_tools/tools/reset
-INCLUDE_DIRS ?= ../Common/inc . ./Actor ./esp8266
+INCLUDE_DIRS ?= ../Common/inc . ./Actor ./esp8266 ./include ../ArduinoJson ../pubsubclient/src 
 CORE_DIR ?= $(ESP_LIBS)
 # USER_DIRS ?= $(ESP_LIBS)
 # LIBS ?= .
@@ -31,6 +31,8 @@ LIBS ?= $(ESP_LIBS)/Wire \
         ../Common/src \
         ../Common/inc \
         ./Actor \
+        ../pubsubclient/src \
+       $(ESP_LIBS)/ESP8266WebServer \
        $(ESP_LIBS)/EEPROM \
        $(ESP_LIBS)/ESP8266WiFi \
        $(ESP_LIBS)/ESP8266mDNS \

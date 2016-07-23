@@ -7,21 +7,13 @@
 
 #include "Actor.h"
 
-class Dummy: public Actor {
-public:
-	Dummy() :
-			Actor("Dummy") {
-	}
-	void on(Header h) {
-		logHeader(__FUNCTION__, h);
-	}
-
-};
-
-Actor* Actor::_actors[MAX_ACTORS];
-uint32_t Actor::_count = 0;
-Actor* Actor::_gDummy = new Dummy();
+HandlerEntry Actor::_handlers[30];
+uint32_t Actor::_handlerCount = 0;
 QueueTemplate<Header> Actor::_queue(20);
+Actor* Actor::_actors[15];
+uint32_t Actor::_actorCount = 0;
+
+SystemClass System;
 
 const char*strEvent[] = { "INIT", "TIMEOUT", "STOP", "RESTART", "CONFIG", "TXD",
 		"RXD", "CONNECT", "DISCONNECT", "ADD_LISTENER", "PUBLISH", "SUBSCRIBE",
@@ -60,50 +52,89 @@ const char* Actor::eventToString(uint8_t event) {
 Actor::Actor(const char* name) {
 	_timeout = UINT_LEAST64_MAX;
 	_name = name;
-	_me = _count++;
-	_actors[_me] = this;
-	LOGF(" Actor : %s [%d]", _name, _me);
+	_id = _actorCount++;
+	ASSERT_LOG(_actorCount < (sizeof(_actors) / sizeof(Actor*)));
+	_actors[_id] = this;
+	_state = 0;
+	_ptLine = LineNumberInvalid;
+	LOGF(" Actor ctor : %s [%d]", _name, _id);
 }
 
 void Actor::logHeader(const char* prefix, Header h) {
-	LOGF(" %s EVENT %s => %s => %s ",
-			prefix, actor(h._src).name(), eventToString(h._event), actor(h._dst).name());
+	const char* src = h._src < _actorCount ? _actors[h._src]->_name : "ANY";
+	const char* dst = h._dst < _actorCount ? _actors[h._dst]->_name : "ANY";
+	const char* event =
+			h._event < MAX_EVENTS ? eventToString(h._event) : " UNKNOWN EVENT";
+
+	LOGF(" %s - %s:%s => %s ", prefix, src, event, dst);
 }
 
-void Actor::on(Header h) {
-	LOGF(" me : %s ", _name);
+void Actor::on(Header h, EventHandler m) {
+	_handlers[_handlerCount]._filter = h;
+	_handlers[_handlerCount]._method = m;
 	logHeader(__FUNCTION__, h);
+}
+
+void Actor::on(Event event, Actor& actor, EventHandler m) {
+	_handlers[_handlerCount]._filter = Header(id(), event);
+	_handlers[_handlerCount]._method = m;
+	_handlers[_handlerCount]._actor = &actor;
+	ASSERT_LOG(_handlerCount < (sizeof(_handlers) / sizeof(HandlerEntry)));
+	_handlerCount++;
+}
+
+void Actor::initAll() {
+	for (int i = 0; i < _actorCount; i++)
+		_actors[i]->init();
+}
+
+bool Actor::match(Header src, Header filter) {
+//	LOGF(" comparing headers src : %X filter : %X", src._word, filter._word);
+	if (filter._dst == ANY || filter._dst == src._dst)
+		if (filter._src == ANY || filter._src == src._src)
+			if (filter._event == ANY || filter._event == src._event)
+				return true;
+	return false;
 }
 
 void Actor::eventLoop() {
 	Header hdr;
+	// Check event in Queue
 	while (_queue.get(hdr) == E_OK) {
-		logHeader(__FUNCTION__, hdr);
-		for (int i = 1; i < _count; i++) {
-			_actors[i]->on(hdr);
+//		LOGF("hdr:%X", hdr);
+		logHeader(" event on queue :", hdr);
+		for (int i = 0; i < _handlerCount; i++) {
+//			logHeader(" filter : ", _handlers[i]._filter);
+			if (match(hdr, _handlers[i]._filter)) {
+				LOGF(" calling handler ! %s ", _handlers[i]._actor->name());
+				delay(10);
+				CALL_MEMBER_FN(*_handlers[i]._actor,_handlers[i]._method)(hdr);
+			}
 		}
 	}
-	for (int i = 1; i < _count; i++) {
+	for (int i = 0; i < _actorCount; i++) {
 		_actors[i]->loop();
 		if (_actors[i]->timeout()) {
-			_actors[i]->timeout(UINT32_MAX);
-			_actors[i]->on(
-					Header(_actors[i]->me(), _actors[i]->me(), TIMEOUT, 0));
+			for (int j = 0; j < _handlerCount; j++) {
+				if (match(Header(_actors[i]->id(), TIMEOUT),
+						_handlers[i]._filter)) {
+					CALL_MEMBER_FN(*_handlers[i]._actor,_handlers[i]._method)(
+							hdr);
+				}
+			}
 		}
 	}
 }
-void Actor::publish(Event ev) {
-	Header h((ActorRef) 0, me(), ev, 0);
-	_queue.put(h);
+void Actor::publish(uint8_t ev) {
+	Header h((uint8_t) ANY, id(), (Event) ev, 0);
+	publish(h);
 }
 
-void Actor::pub(Event ev) {
-	Header h((ActorRef) 0, (ActorRef) 0, ev, 0);
+void Actor::publish(Header h) {
 	_queue.put(h);
 }
 
 Actor::~Actor() {
-
 }
 
 bool Header::is(int dst, int src, Event event, uint8_t detail) {

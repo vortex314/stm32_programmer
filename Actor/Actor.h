@@ -22,9 +22,11 @@ typedef enum {
 	PUBLISH,
 	SUBSCRIBE,
 	NONE,
+	MAX_EVENTS,
 	RESPONSE = 0x80,
 	ANY = 0xFF
 } Event;
+
 #define REPLY(xxx) (Event)(xxx + Event::RESPONSE)
 #define MAX_ACTORS 20
 
@@ -51,14 +53,14 @@ public:
 	}
 	Header(int dst, int src, Event event, uint8_t detail); //
 	Header(ActorRef src, Event event) :
-			Header((ActorRef) 0, src, event, 0) {
+			Header((ActorRef)ANY, src, event, 0) {
 	}
 	Header(Event event) :
-			Header((ActorRef) 0, (ActorRef) 0, event, 0) {
+			Header((ActorRef) ANY, (ActorRef) ANY, event, 0) {
 	}
 	bool is(ActorRef dst, ActorRef src, Event event, uint8_t detail); //
-	bool is(Event event,uint8_t detail);
-	bool is(int dst, int src, Event event, uint8_t detail); //
+	bool is(Event event, uint8_t detail);bool is(int dst, int src, Event event,
+			uint8_t detail); //
 	bool is(ActorRef dst, ActorRef src, uint8_t event, uint8_t detail); //
 	inline bool is(uint8_t event) {
 		return _event == event;
@@ -111,37 +113,51 @@ static const LineNumber LineNumberInvalid = (LineNumber) (-1);
 // Stores the protothread's position (by storing the line number of
 // the last PT_WAIT, which is then switched on at the next Run).
 
+class Actor;
+typedef void (Actor::*EventHandler)(Header);
+#define CALL_MEMBER_FN(object,ptrToMember)  ((object).*(ptrToMember))
+#include <functional>
+typedef struct {
+	Header _filter;
+	Actor* _actor;
+	EventHandler _method;
+	std::function<void(Header)> _m;
+} HandlerEntry;
+
 class Actor {
 private:
 	const char* _name;
 	uint64_t _timeout;
-	ActorRef _me;
-	ActorRef _listener;
-	static Actor* _actors[MAX_ACTORS];
-	static uint32_t _count;
-	static QueueTemplate<Header> _queue;
+	uint8_t _id;
 	uint32_t _state;
+
+	static Actor* _actors[];
+	static uint32_t _actorCount;
+	static HandlerEntry _handlers[];
+	static uint32_t _handlerCount;
+	static uint8_t _gId;
+	static QueueTemplate<Header> _queue;
 
 protected:
 	LineNumber _ptLine;
 	static const char* eventToString(uint8_t event);
-	static Actor* _gDummy;
 public:
 	Actor(const char* name);
 	virtual ~Actor();
-	ActorRef me() {
-		return _me;
+	uint8_t id() {
+		return _id;
 	}
-	ActorRef ref() {
-		return _me;
-	}
-	virtual void on(Header hdr);
-	virtual void setup() {
-		on(Header(me(), INIT));
-	}
-	virtual void loop() {
-		on(Header(me(), NONE));
-	}
+	virtual void init(){};
+	static void initAll();
+	void on(Header, EventHandler);
+	void on(Event, Actor&, EventHandler);
+	void publish(uint8_t event);
+	void publish(uint8_t src, uint8_t event);
+	virtual void loop() {};
+	static void publish(Header);
+	static void eventLoop();
+	static bool match(Header src, Header filter);
+
 	void timeout(uint32_t time) {
 		_timeout = millis() + time;
 	}
@@ -158,53 +174,16 @@ public:
 	inline int state() {
 		return _state;
 	}
-	inline ActorRef listener() {
-		return _listener;
-	}
-	virtual inline void listener(ActorRef listener) {
-		_listener = listener;
-	}
-	static void eventLoop();
-	void publish(Event ev) ;
-	static void pub(Event ev);
-	static Actor& actor(ActorRef ref) {
-		return *_actors[ref];
-	}
-	static void logHeader(const char* prefix,Header hdr);
+
+	static void logHeader(const char* prefix, Header hdr);
 };
 
-/*
+class SystemClass: public Actor {
+public:
+	SystemClass() :Actor("System") {
 
- Stm32::Stm32() {
-	// TODO Auto-generated constructor stub
-
-}
-
-Stm32::~Stm32() {
-	// TODO Auto-generated destructor stub
-}
-
-void Stm32::setup(TcpServer* tcp){
-	_wifi=wifi;
-}
-
-Stm32::~Stm32() {
-	// TODO Auto-generated destructor stub
-}
-
-void Stm32::on(Header hdr) {
-	if (hdr.is(_wifi->ref(), REPLY(CONNECT))) {
-		if (!MDNS.begin("esp8266")) {
-			Serial.println("Error setting up MDNS responder!");
-		}
 	}
-}
-
-void Stm32::loop(){
-
-}
-
- */
-
+};
+extern SystemClass System;
 
 #endif /* ACTOR_H_ */

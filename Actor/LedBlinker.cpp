@@ -18,20 +18,14 @@ LedBlinker::LedBlinker() :
 LedBlinker::~LedBlinker() {
 }
 
-void LedBlinker::setup(ActorRef src) {
-	LOGF(" src : %d %s ",src,actor(src).name());
-	_src = src;
+void LedBlinker::init() {
 	pinMode(PIN, OUTPUT);
 	digitalWrite(PIN, 1);
 	timeout(100);
 }
 
-void LedBlinker::loop(){
-
-}
-
-void LedBlinker::on(Header hdr) {
-	if (hdr.is(TIMEOUT)) {
+void LedBlinker::loop() {
+	if (timeout()) {
 		if (_isOn) {
 			_isOn = false;
 			digitalWrite(PIN, 1);
@@ -40,9 +34,15 @@ void LedBlinker::on(Header hdr) {
 			digitalWrite(PIN, 0);
 		}
 		timeout(_interval);
-	} else if (hdr.is(_src, REPLY(CONNECT))) {
-		_interval = 500;
-	} else if (hdr.is(_src, REPLY(DISCONNECT))) {
-		_interval = 100;
 	}
+}
+
+void LedBlinker::blinkFast(Header h) {
+	LOGF("");
+	_interval = 100;
+}
+
+void LedBlinker::blinkSlow(Header h) {
+	LOGF("");
+	_interval = 500;
 }
