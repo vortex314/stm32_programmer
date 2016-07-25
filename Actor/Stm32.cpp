@@ -38,7 +38,7 @@ Erc Stm32::begin() {
 	digitalWrite(PIN_RESET, 1);
 	pinMode(PIN_BOOT0, OUTPUT);
 	setBoot0(true);
-//	setAltSerial(true);
+	setAltSerial(true);
 }
 
 Erc Stm32::reset() {

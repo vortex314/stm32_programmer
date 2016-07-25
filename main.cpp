@@ -157,12 +157,20 @@ mDNS mdns;
 #include <MQTT.h>
 #include <PubSubClient.h>
 
+void mqttLog(char* s, uint32_t length);
+
 class Mqtt: public Actor, public PubSubClient {
 private:
 	WiFiClient _wclient;
+	long lastReconnectAttempt;
+	enum {
+		DISCONNECTED, CONNECTED
+	} _state;
 public:
 	Mqtt() :
 			Actor("Mqtt"), PubSubClient(_wclient, "iot.eclipse.org") {
+		_state = DISCONNECTED;
+		lastReconnectAttempt = 0;
 	}
 	void init() {
 		timeout(100);
@@ -173,23 +181,56 @@ public:
 			PubSubClient::publish(topic, message);
 	}
 
+	bool reconnect() {
+		String clientId = "ESP8266_" + millis();
+		if (connect(clientId, "stm32/alive", 1, false, "false")) {
+			Actor::publish(CONNECT);
+			publishTopic("stm32/alive", "true");
+			subscribe("stm32/in/#");
+		}
+		Log.setOutput(mqttLog);
+		return connected();
+	}
+
 	void onWifiConnect(Header hdr) {
 		if (!connected()) {
-			String clientId =  "ESP8266_"+millis();
-			if (connect(clientId, "stm32/alive", 1, false, "false")) {
-				publishTopic("stm32/alive", "true");
-				subscribe("stm32/in/#");
+			reconnect();
+		}
+	}
+	void state(uint32_t st) {
+		if (st != Actor::state()) {
+			Actor::state(st);
+			if (st == CONNECTED) {
+				LOGF(" Mqtt Connected.");
+				Actor::publish(CONNECT);
+			} else {
+				LOGF(" Mqtt Disconnected.");
+				Actor::publish(DISCONNECT);
 			}
 		}
 	}
 	void loop() {
-		PubSubClient::loop();
 		if (timeout()) {
 //			LOGF("timeout -  connected %d",connected());
 			String str(millis());
 			publishTopic("stm32/log", str);
 			publishTopic("stm32/heap", String(ESP.getFreeHeap()));
-			timeout(100);
+			timeout(1000);
+		}
+		state(connected() ? CONNECTED : DISCONNECTED);
+		if (!connected()) {
+			long now = millis();
+			if (now - lastReconnectAttempt > 5000) {
+				lastReconnectAttempt = now;
+				// Attempt to reconnect
+				if (reconnect()) {
+					lastReconnectAttempt = 0;
+				}
+			}
+		} else {
+			// Client connected
+
+			PubSubClient::loop();
 		}
 	}
 };
@@ -247,9 +288,11 @@ extern "C" void setup() {
 	Serial.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
 	Serial1.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_TX_ONLY);
 	led.init();
-	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
-	wifi.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
-	wifi.on(CONNECT, mdns, (EventHandler) &mDNS::init);
+	stm32.begin();
+
+	mqtt.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
+	mqtt.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
+	wifi.on(CONNECT, mdns, (EventHandler) &mDNS::onWifiConnected);
 	wifi.on(CONNECT, mqtt, (EventHandler) &Mqtt::onWifiConnect);
 
 	mqtt.set_callback(callback);
