@@ -11,7 +11,7 @@
 #define PIN_BOOT0 5 // GPIO5 D1
 #define ACK 0x79
 #define NACK 0x1F
-#define DELAY 100
+#define DELAY 1000
 
 bool Stm32::_alt_serial = false;
 uint64_t Stm32::_timeout = 0;
@@ -83,7 +83,7 @@ Erc Stm32::engine(Bytes& reply, Bytes& req) {
 		}
 		case X_WAIT_ACK: {
 			LOGF("X_WAIT_ACK");
-			timeout(10);
+			timeout(DELAY);
 			while (true) {
 				if (timeout()) {
 					error = ETIMEDOUT;
@@ -154,15 +154,15 @@ Erc Stm32::engine(Bytes& reply, Bytes& req) {
 					break;
 				}
 			}
-			LOGF("X_RECV_VAR : %d", b);
+			LOGF("X_RECV_VAR : %d", b+1);
 			lengthToRead = b + 1;
 			timeout(DELAY);
-			while (lengthToRead && error == E_OK) {
+			while (lengthToRead>0 && error == E_OK) {
 				if (timeout()) {
 					error = ETIMEDOUT;
 					goto END;
 				}
-				while (Serial.available()) {
+				while (Serial.available() && lengthToRead>0) {
 					reply.write(Serial.read());
 					lengthToRead--;
 				}
@@ -170,7 +170,7 @@ Erc Stm32::engine(Bytes& reply, Bytes& req) {
 			break;
 		}
 		default: {
-			LOGF(" UKNOWN COMMAND");
+			LOGF(" UNKNOWN COMMAND");
 			error = EINVAL;
 			goto END;
 			break;

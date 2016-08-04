@@ -142,7 +142,7 @@ char* strchr(const char* str, int l) {
 	return 0;
 }
 
-//_________________________________________________________________
+//________________________________________________Se_________________
 Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
 LedBlinker led;
 // TcpServer tcpServer(23);
@@ -154,7 +154,7 @@ mDNS mdns;
 
 #include <Base64.h>
 #include <ArduinoJson.h>
-#include <MQTT.h>
+//#include <MQTT.h>
 #include <PubSubClient.h>
 
 void mqttLog(char* s, uint32_t length);
@@ -214,8 +214,8 @@ public:
 //			LOGF("timeout -  connected %d",connected());
 			String str(millis());
 			publishTopic("stm32/log", str);
-			publishTopic("stm32/heap", String(ESP.getFreeHeap()));
-			timeout(1000);
+			publishTopic("stm32/heap", " heap = " + String(ESP.getFreeHeap()));
+			timeout(5000);
 		}
 		state(connected() ? CONNECTED : DISCONNECTED);
 		if (!connected()) {
@@ -237,36 +237,47 @@ public:
 
 Mqtt mqtt;
 
-Bytes bytesIn(300);
-Bytes bytesOut(300);
-Str strOut(400);
+Bytes bytesIn(450);
+Bytes bytesOut(450);
+Str strOut(450);
 
 void handle(JsonObject& resp, JsonObject& req) {
 	String dataIn = req["data"];
 	Str strIn(dataIn.c_str());
 	Erc erc = Base64::decode(bytesIn, strIn);	//
-	LOGF(" length : %d ", bytesIn.length());
+	LOGF(" dataIn[%d] strIn[%d]  bytesIn[%d] erc : %d ", dataIn.length(),
+			strIn.length(), bytesIn.length(), erc);
 	resp["error"] = Stm32::engine(bytesOut, bytesIn);
 	erc = Base64::encode(strOut, bytesOut);
 	resp["data"] = String(strOut.c_str());
 	resp["id"] = req["id"];
-	resp["cmd"] = req["cmd"];
+	resp["reply"] = req["request"];
 	resp["time"] = millis();
 }
 
+bool busy = false;
+
 void onMessageReceived(String topic, String message) {
-	LOGF(" recv %s : %s \n", topic.c_str(), message.c_str());
+//	LOGF(" recv %s : %s \n", topic.c_str(), message.c_str());
 
 	if (topic == "stm32/in/request") {
-		StaticJsonBuffer<200> request;
-		StaticJsonBuffer<200> reply;
+		busy = true;
+		LOGF(" topic[%d], message [%d]", topic.length(), message.length());
+		const int SIZE = JSON_OBJECT_SIZE(6) + JSON_ARRAY_SIZE(1);
+		StaticJsonBuffer<1000> request;
+		StaticJsonBuffer<1000> reply;
 		JsonObject& req = request.parseObject(message);
 		JsonObject& repl = reply.createObject();
-		handle(repl, req);
-		String str;
-		repl.printTo(str);
-		mqtt.publishTopic("stm32/reply", str);
-		LOGF(" out stm32/reply : %s\n", str.c_str());
+		if (!req.success()) {
+			LOGF(" parsing request failed ");
+		} else {
+			handle(repl, req);
+			String str;
+			repl.printTo(str);
+			mqtt.publishTopic("stm32/reply", str);
+		}
+//		LOGF(" out stm32/reply : %s\n", str.c_str());
+		busy = false;
 	} else {
 		LOGF(" unknown topic received %s ", topic.c_str());
 	}
@@ -274,9 +285,12 @@ void onMessageReceived(String topic, String message) {
 }
 
 void callback(const MQTT::Publish& pub) {
-	LOGF(" published : %s : %s ", pub.topic().c_str(),
-			pub.payload_string().c_str());
-	onMessageReceived(pub.topic(), pub.payload_string());
+//	LOGF(" published : %s : %s ", pub.topic().c_str(),
+//			pub.payload_string().c_str());
+	if (!busy)
+		onMessageReceived(pub.topic(), pub.payload_string());
+	else
+	LOGF(" BUSY !!");
 }
 
 void mqttLog(char* s, uint32_t length) {
@@ -288,6 +302,9 @@ extern "C" void setup() {
 	Serial.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
 	Serial1.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_TX_ONLY);
 	led.init();
+	LOGF(" starting .... ");
+	LOGF(" switching serial output to mqtt.");
+	delay(100);
 	stm32.begin();
 
 	mqtt.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
