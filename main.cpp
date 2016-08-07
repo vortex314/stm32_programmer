@@ -189,6 +189,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 			resp["chipId"] = chipId;
 		}
 	} else if (cmd.equals("get")) {
+
 		Bytes data(30);
 		Str strData(60);
 		erc = stm32.get(data);
@@ -197,6 +198,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 			resp["cmds"] = String(strData.c_str());
 		}
 	} else if (cmd.equals("writeMemory")) {
+
 		Bytes data(256);
 		Str str((const char*) req["data"]);
 		uint32_t address = req["address"];
@@ -206,7 +208,18 @@ void handle(JsonObject& resp, JsonObject& req) {
 		if (erc == E_OK) {
 			erc = stm32.writeMemory(address, data);
 		}
+	} else if (cmd.equals("eraseMemory")) {
+
+		Bytes pages(256);
+		Str str((const char*) req["pages"]);
+		erc = Base64::decode(pages, str);
+		resp["length"] = pages.length();
+		erc = stm32.eraseMemory(pages);
+	} else if (cmd.equals("eraseAll")) {
+
+		erc = stm32.eraseAll();
 	} else if (cmd.equals("readMemory")) {
+
 		Str strData(410);
 		Bytes data(256);
 		uint32_t address = req["address"];
@@ -218,15 +231,12 @@ void handle(JsonObject& resp, JsonObject& req) {
 			erc = Base64::encode(strData, data);
 			resp["data"] = String(strData.c_str());
 		}
-	} else if (cmd.equals("")) {
-		String dataIn = req["data"];
-		Str strIn(dataIn.c_str());
-		erc = Base64::decode(bytesIn, strIn);	//
-		LOGF(" dataIn[%d] strIn[%d]  bytesIn[%d] erc : %d ", dataIn.length(),
-				strIn.length(), bytesIn.length(), erc);
-
-		erc = Base64::encode(strOut, bytesOut);
-		resp["data"] = String(strOut.c_str());
+	}  else if (cmd.equals("go")) {
+		uint32_t address = req["address"];
+		resp["address"] = address;
+		erc = stm32.go(address);
+	} else {
+		erc = EINVAL;
 	}
 	resp["delta"] = millis() - startTime;
 	resp["error"] = erc;
@@ -251,12 +261,7 @@ void handle(JsonObject& resp, JsonObject& req) {
  }
  }*/
 
-void udpLog(char* str, uint32_t length) {
-	WiFiUDP Udp;
-	Udp.beginPacket(IPAddress(192, 168, 0, 210), 3881);
-	Udp.write(str, length);
-	Udp.endPacket();
-}
+void udpLog(char* str, uint32_t length);
 
 #define UDP_MAX_SIZE	512
 #define UDP_PACKETS	3
@@ -273,11 +278,13 @@ private:
 	Packet* _current;
 
 public:
+	static IPAddress _lastAddress;
+	static uint16_t _lastPort;
 	UdpServer() :
 			Actor("UdpServer") {
 		_packetIdx = 0;
 		_packet[_packetIdx].used = false;
-
+		_current = &_packet[0];
 	}
 
 	void onWifiConnect(Header h) {
@@ -296,10 +303,10 @@ public:
 				LOGF(" UDP buffer overflow");
 				return;
 			}
-	/*		LOGF(" UDP rxd %s:%d in packet %d", remoteIP().toString().c_str(),
-					remotePort(), _packetIdx);*/
-			remoteIP();
-			remotePort();
+			/*		LOGF(" UDP rxd %s:%d in packet %d", remoteIP().toString().c_str(),
+			 remotePort(), _packetIdx);*/
+			_lastAddress = remoteIP();
+			_lastPort = remotePort();
 			_current = &_packet[_packetIdx];
 			read(_current->buffer, length); // read the packet into the buffer
 			_current->buffer[length] = '\0';
@@ -325,6 +332,15 @@ public:
 };
 
 UdpServer udp;
+IPAddress UdpServer::_lastAddress=IPAddress(192,168,0,210);
+uint16_t UdpServer::_lastPort=3881;
+
+void udpLog(char* str, uint32_t length) {
+	WiFiUDP Udp;
+	Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
+	Udp.write(str, length);
+	Udp.endPacket();
+}
 
 extern "C" void setup() {
 	Serial.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
@@ -343,6 +359,7 @@ extern "C" void setup() {
 	Actor::initAll();
 	return;
 }
+
 
 extern "C" void loop() {
 	Actor::eventLoop();

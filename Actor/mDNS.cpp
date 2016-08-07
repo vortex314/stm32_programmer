@@ -21,6 +21,6 @@ void mDNS::onWifiConnected(Header hdr) {
 }
 
 void mDNS::loop() {
-
+	MDNS.update();
 }
 

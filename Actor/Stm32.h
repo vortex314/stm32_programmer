@@ -35,6 +35,11 @@ public:
 	 Erc get(Bytes& cmds);
 	 Erc writeMemory(uint32_t address,Bytes& data);
 	 Erc readMemory(uint32_t address,uint32_t length,Bytes& data);
+	 Erc eraseMemory(Bytes& pages);
+	 Erc eraseAll();
+	 Erc go(uint32_t address);
+
+	 void loop();
 
 	 Erc waitAck(Bytes& out,Bytes& in,uint32_t count, uint32_t timeout ) ;
 	 Erc readVar(Bytes& in,uint32_t max, uint32_t timeout ) ;
