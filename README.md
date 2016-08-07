@@ -10,8 +10,8 @@ Program implements :
 | Command        | JSON           | DESC  |
 | ------------- |:-------------:| -----:|
 | reset      | {"request":"reset","id":12} | pulse reset pin of stm32 and send at 115200 the sync char |
-| col 2 is      | centered      |   $12 |
-| zebra stripes | are neat      |    $1 |
+| erase All memory      | "eraseAll"      |   erase all flash memory  |
+| erase Page memories | "eraseMemory","pages":"Base64 byte sequence"      |    erase selected pages of the STM32 flash |
 
 
 
