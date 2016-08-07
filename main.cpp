@@ -6,6 +6,7 @@
 #include <LedBlinker.h>
 #include <TcpServer.h>
 #include <TcpClient.h>
+#include <WiFiUdp.h>
 
 #include <ESP8266mDNS.h>
 #include <Stm32.h>
@@ -16,6 +17,7 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <Udp.h>
 //#include <WifiWebServer.h>
 
 int islower(int a) {
@@ -142,6 +144,10 @@ char* strchr(const char* str, int l) {
 	return 0;
 }
 
+unsigned long strtoul(const char *nptr, char **endptr, register int base) {
+	return strtol(nptr, endptr, base);
+}
+
 //________________________________________________Se_________________
 Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
 LedBlinker led;
@@ -157,162 +163,183 @@ mDNS mdns;
 //#include <MQTT.h>
 #include <PubSubClient.h>
 
-void mqttLog(char* s, uint32_t length);
-
-class Mqtt: public Actor, public PubSubClient {
-private:
-	WiFiClient _wclient;
-	long lastReconnectAttempt;
-	enum {
-		DISCONNECTED, CONNECTED
-	} _state;
-public:
-	Mqtt() :
-			Actor("Mqtt"), PubSubClient(_wclient, "iot.eclipse.org") {
-		_state = DISCONNECTED;
-		lastReconnectAttempt = 0;
-	}
-	void init() {
-		timeout(100);
-	}
-
-	void publishTopic(String topic, String message) {
-		if (connected())
-			PubSubClient::publish(topic, message);
-	}
-
-	bool reconnect() {
-		String clientId = "ESP8266_" + millis();
-		if (connect(clientId, "stm32/alive", 1, false, "false")) {
-			Actor::publish(CONNECT);
-			publishTopic("stm32/alive", "true");
-			subscribe("stm32/in/#");
-		}
-		Log.setOutput(mqttLog);
-		return connected();
-	}
-
-	void onWifiConnect(Header hdr) {
-		if (!connected()) {
-			reconnect();
-		}
-	}
-	void state(uint32_t st) {
-		if (st != Actor::state()) {
-			Actor::state(st);
-			if (st == CONNECTED) {
-				LOGF(" Mqtt Connected.");
-				Actor::publish(CONNECT);
-			} else {
-				LOGF(" Mqtt Disconnected.");
-				Actor::publish(DISCONNECT);
-			}
-		}
-	}
-	void loop() {
-		if (timeout()) {
-//			LOGF("timeout -  connected %d",connected());
-			String str(millis());
-			publishTopic("stm32/log", str);
-			publishTopic("stm32/heap", " heap = " + String(ESP.getFreeHeap()));
-			timeout(5000);
-		}
-		state(connected() ? CONNECTED : DISCONNECTED);
-		if (!connected()) {
-			long now = millis();
-			if (now - lastReconnectAttempt > 5000) {
-				lastReconnectAttempt = now;
-				// Attempt to reconnect
-				if (reconnect()) {
-					lastReconnectAttempt = 0;
-				}
-			}
-		} else {
-			// Client connected
-
-			PubSubClient::loop();
-		}
-	}
-};
-
-Mqtt mqtt;
-
 Bytes bytesIn(450);
 Bytes bytesOut(450);
 Str strOut(450);
 
 void handle(JsonObject& resp, JsonObject& req) {
-	String dataIn = req["data"];
-	Str strIn(dataIn.c_str());
-	Erc erc = Base64::decode(bytesIn, strIn);	//
-	LOGF(" dataIn[%d] strIn[%d]  bytesIn[%d] erc : %d ", dataIn.length(),
-			strIn.length(), bytesIn.length(), erc);
-	resp["error"] = Stm32::engine(bytesOut, bytesIn);
-	erc = Base64::encode(strOut, bytesOut);
-	resp["data"] = String(strOut.c_str());
+	String cmd = req["request"];
 	resp["id"] = req["id"];
 	resp["reply"] = req["request"];
-	resp["time"] = millis();
+	uint32_t startTime = millis();
+	Erc erc = 0;
+	if (cmd.equals("reset")) {
+		erc = stm32.reset();
+	} else if (cmd.equals("status")) {
+		resp["esp_id"] = ESP.getChipId();
+		resp["freq_Mhz"] = ESP.getCpuFreqMHz();
+		resp["flash_size"] = ESP.getFlashChipSize();
+		resp["heap"] = ESP.getFreeHeap();
+		resp["Vcc"] = ESP.getVcc();
+		resp["upTime"] = millis();
+	} else if (cmd.equals("getId")) {
+		uint16_t chipId;
+		erc = stm32.getId(chipId);
+		if (erc == E_OK) {
+			resp["chipId"] = chipId;
+		}
+	} else if (cmd.equals("get")) {
+		Bytes data(30);
+		Str strData(60);
+		erc = stm32.get(data);
+		if (erc == E_OK) {
+			erc = Base64::encode(strData, data);
+			resp["cmds"] = String(strData.c_str());
+		}
+	} else if (cmd.equals("writeMemory")) {
+		Bytes data(256);
+		Str str((const char*) req["data"]);
+		uint32_t address = req["address"];
+		resp["address"] = address;
+		erc = Base64::decode(data, str);
+		resp["length"] = data.length();
+		if (erc == E_OK) {
+			erc = stm32.writeMemory(address, data);
+		}
+	} else if (cmd.equals("readMemory")) {
+		Str strData(410);
+		Bytes data(256);
+		uint32_t address = req["address"];
+		uint32_t length = req["length"];
+		resp["address"] = address;
+		resp["length"] = length;
+		erc = stm32.readMemory(address, length, data);
+		if (erc == E_OK) {
+			erc = Base64::encode(strData, data);
+			resp["data"] = String(strData.c_str());
+		}
+	} else if (cmd.equals("")) {
+		String dataIn = req["data"];
+		Str strIn(dataIn.c_str());
+		erc = Base64::decode(bytesIn, strIn);	//
+		LOGF(" dataIn[%d] strIn[%d]  bytesIn[%d] erc : %d ", dataIn.length(),
+				strIn.length(), bytesIn.length(), erc);
+
+		erc = Base64::encode(strOut, bytesOut);
+		resp["data"] = String(strOut.c_str());
+	}
+	resp["delta"] = millis() - startTime;
+	resp["error"] = erc;
+
+}
+/*
+ void onMessageReceived(String topic, String message) {
+ //	LOGF(" recv %s : %s \n", topic.c_str(), message.c_str());
+
+ const int SIZE = JSON_OBJECT_SIZE(6) + JSON_ARRAY_SIZE(1);
+ StaticJsonBuffer<1000> request;
+ StaticJsonBuffer<1000> reply;
+ JsonObject& req = request.parseObject(message);
+ JsonObject& repl = reply.createObject();
+ if (!req.success()) {
+ LOGF(" parsing request failed ");
+ } else {
+ handle(repl, req);
+ String str;
+ repl.printTo(str);
+
+ }
+ }*/
+
+void udpLog(char* str, uint32_t length) {
+	WiFiUDP Udp;
+	Udp.beginPacket(IPAddress(192, 168, 0, 210), 3881);
+	Udp.write(str, length);
+	Udp.endPacket();
 }
 
-bool busy = false;
+#define UDP_MAX_SIZE	512
+#define UDP_PACKETS	3
+class UdpServer: public Actor, public WiFiUDP {
+private:
+	typedef struct {
+		IPAddress ip;
+		uint16_t port;
+		char buffer[UDP_MAX_SIZE];	//
+		bool used;
+	} Packet;
+	Packet _packet[UDP_PACKETS];
+	int _packetIdx;
+	Packet* _current;
 
-void onMessageReceived(String topic, String message) {
-//	LOGF(" recv %s : %s \n", topic.c_str(), message.c_str());
+public:
+	UdpServer() :
+			Actor("UdpServer") {
+		_packetIdx = 0;
+		_packet[_packetIdx].used = false;
 
-	if (topic == "stm32/in/request") {
-		busy = true;
-		LOGF(" topic[%d], message [%d]", topic.length(), message.length());
-		const int SIZE = JSON_OBJECT_SIZE(6) + JSON_ARRAY_SIZE(1);
-		StaticJsonBuffer<1000> request;
-		StaticJsonBuffer<1000> reply;
-		JsonObject& req = request.parseObject(message);
-		JsonObject& repl = reply.createObject();
-		if (!req.success()) {
-			LOGF(" parsing request failed ");
-		} else {
-			handle(repl, req);
-			String str;
-			repl.printTo(str);
-			mqtt.publishTopic("stm32/reply", str);
-		}
-//		LOGF(" out stm32/reply : %s\n", str.c_str());
-		busy = false;
-	} else {
-		LOGF(" unknown topic received %s ", topic.c_str());
 	}
 
-}
+	void onWifiConnect(Header h) {
+		begin(1883);
+		Log.setOutput(udpLog);
+	}
 
-void callback(const MQTT::Publish& pub) {
-//	LOGF(" published : %s : %s ", pub.topic().c_str(),
-//			pub.payload_string().c_str());
-	if (!busy)
-		onMessageReceived(pub.topic(), pub.payload_string());
-	else
-	LOGF(" BUSY !!");
-}
+	void loop() {
+		int length;
+		if (length = parsePacket()) {	// received data
+			if (length > UDP_MAX_SIZE) {
+				LOGF(" UDP packet too big");
+				return;
+			}
+			if (_packet[_packetIdx].used) {
+				LOGF(" UDP buffer overflow");
+				return;
+			}
+	/*		LOGF(" UDP rxd %s:%d in packet %d", remoteIP().toString().c_str(),
+					remotePort(), _packetIdx);*/
+			remoteIP();
+			remotePort();
+			_current = &_packet[_packetIdx];
+			read(_current->buffer, length); // read the packet into the buffer
+			_current->buffer[length] = '\0';
+			StaticJsonBuffer<200> request;
+			JsonObject& req = request.parseObject(_current->buffer);
+			StaticJsonBuffer<1000> reply;
+			JsonObject& repl = reply.createObject();
+			if (!req.success()) {
+				LOGF(" UDP message JSON parsing fails");
+				return;
+			} else {
+				handle(repl, req);
+				String str;
+				repl.printTo(str);
+				beginPacket(remoteIP(), remotePort());
+				write(str.c_str(), str.length());
+				endPacket();
+			}
+			publish(RXD);
+			_packetIdx = ++_packetIdx % UDP_PACKETS;
+		}
+	}
+};
 
-void mqttLog(char* s, uint32_t length) {
-	if (mqtt.connected())
-		mqtt.publishTopic("stm32/log", s);
-}
+UdpServer udp;
 
 extern "C" void setup() {
 	Serial.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
 	Serial1.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_TX_ONLY);
 	led.init();
 	LOGF(" starting .... ");
-	LOGF(" switching serial output to mqtt.");
 	delay(100);
 	stm32.begin();
 
-	mqtt.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
-	mqtt.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
+	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
+	wifi.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
 	wifi.on(CONNECT, mdns, (EventHandler) &mDNS::onWifiConnected);
-	wifi.on(CONNECT, mqtt, (EventHandler) &Mqtt::onWifiConnect);
+	wifi.on(CONNECT, udp, (EventHandler) &UdpServer::onWifiConnect);
+//	udp.on(RXD,stm32,(EventHandler) &Stm32::onWifiConnect);
 
-	mqtt.set_callback(callback);
 	Actor::initAll();
 	return;
 }

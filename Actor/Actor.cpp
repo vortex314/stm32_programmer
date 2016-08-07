@@ -102,7 +102,7 @@ void Actor::eventLoop() {
 	// Check event in Queue
 	while (_queue.get(hdr) == E_OK) {
 //		LOGF("hdr:%X", hdr);
-		logHeader(" event on queue :", hdr);
+//		logHeader(" event on queue :", hdr);
 		for (int i = 0; i < _handlerCount; i++) {
 //			logHeader(" filter : ", _handlers[i]._filter);
 			if (match(hdr, _handlers[i]._filter)) {
