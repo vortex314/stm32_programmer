@@ -163,9 +163,98 @@ mDNS mdns;
 //#include <MQTT.h>
 #include <PubSubClient.h>
 
-Bytes bytesIn(450);
-Bytes bytesOut(450);
-Str strOut(450);
+//Bytes bytesIn(450);
+//Bytes bytesOut(450);
+//Str strOut(450);
+void handle(JsonObject& resp, JsonObject& req);
+
+/*
+ void onMessageReceived(String topic, String message) {
+ //	LOGF(" recv %s : %s \n", topic.c_str(), message.c_str());
+
+ const int SIZE = JSON_OBJECT_SIZE(6) + JSON_ARRAY_SIZE(1);
+ StaticJsonBuffer<1000> request;
+ StaticJsonBuffer<1000> reply;
+ JsonObject& req = request.parseObject(message);
+ JsonObject& repl = reply.createObject();
+ if (!req.success()) {
+ LOGF(" parsing request failed ");
+ } else {
+ handle(repl, req);
+ String str;
+ repl.printTo(str);
+
+ }
+ }*/
+
+void udpLog(char* str, uint32_t length);
+
+#define UDP_MAX_SIZE	512
+
+class UdpServer: public Actor, public WiFiUDP {
+private:
+
+	char buffer[UDP_MAX_SIZE];	//
+
+public:
+	static IPAddress _lastAddress;
+	static uint16_t _lastPort;
+	UdpServer() :
+			Actor("UdpServer") {
+	}
+
+	void onWifiConnect(Header h) {
+		begin(1883);
+		Log.setOutput(udpLog);
+	}
+
+	void loop() {
+		int length;
+		if (length = parsePacket()) {	// received data
+			if (length > UDP_MAX_SIZE) {
+				LOGF(" UDP packet too big");
+				return;
+			}
+//			LOGF(" UDP rxd %s:%d in packet %d", remoteIP().toString().c_str(),
+//			 remotePort(), _packetIdx);
+			_lastAddress = remoteIP();
+			_lastPort = remotePort();
+
+//			LOGF("  %s ", remoteIP().toString().c_str());
+			read(buffer, length); 			// read the packet into the buffer
+			buffer[length] = '\0';
+			StaticJsonBuffer<200> request;
+			JsonObject& req = request.parseObject(buffer);
+			StaticJsonBuffer<1000> reply;
+			JsonObject& repl = reply.createObject();
+
+			if (!req.success()) {
+				LOGF(" UDP message JSON parsing fails");
+				return;
+			} else {
+				handle(repl, req);
+//				repl["remoteIp"] = remoteIP().toString();
+				String str;
+				repl.printTo(str);
+				beginPacket(remoteIP(), remotePort());
+				write(str.c_str(), str.length());
+				endPacket();
+			}
+			publish(RXD);
+		}
+	}
+};
+
+UdpServer udp;
+IPAddress UdpServer::_lastAddress = IPAddress(192, 168, 0, 211);
+uint16_t UdpServer::_lastPort = 1883;
+
+void udpLog(char* str, uint32_t length) {
+	WiFiUDP Udp;
+	Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
+	Udp.write(str, length);
+	Udp.endPacket();
+}
 
 void handle(JsonObject& resp, JsonObject& req) {
 	String cmd = req["request"];
@@ -182,6 +271,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 		resp["heap"] = ESP.getFreeHeap();
 		resp["Vcc"] = ESP.getVcc();
 		resp["upTime"] = millis();
+		resp["version"] = __DATE__ " " __TIME__;
 	} else if (cmd.equals("getId")) {
 		uint16_t chipId;
 		erc = stm32.getId(chipId);
@@ -231,7 +321,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 			erc = Base64::encode(strData, data);
 			resp["data"] = String(strData.c_str());
 		}
-	}  else if (cmd.equals("go")) {
+	} else if (cmd.equals("go")) {
 		uint32_t address = req["address"];
 		resp["address"] = address;
 		erc = stm32.go(address);
@@ -240,106 +330,8 @@ void handle(JsonObject& resp, JsonObject& req) {
 	}
 	resp["delta"] = millis() - startTime;
 	resp["error"] = erc;
-
-}
-/*
- void onMessageReceived(String topic, String message) {
- //	LOGF(" recv %s : %s \n", topic.c_str(), message.c_str());
-
- const int SIZE = JSON_OBJECT_SIZE(6) + JSON_ARRAY_SIZE(1);
- StaticJsonBuffer<1000> request;
- StaticJsonBuffer<1000> reply;
- JsonObject& req = request.parseObject(message);
- JsonObject& repl = reply.createObject();
- if (!req.success()) {
- LOGF(" parsing request failed ");
- } else {
- handle(repl, req);
- String str;
- repl.printTo(str);
-
- }
- }*/
-
-void udpLog(char* str, uint32_t length);
-
-#define UDP_MAX_SIZE	512
-#define UDP_PACKETS	3
-class UdpServer: public Actor, public WiFiUDP {
-private:
-	typedef struct {
-		IPAddress ip;
-		uint16_t port;
-		char buffer[UDP_MAX_SIZE];	//
-		bool used;
-	} Packet;
-	Packet _packet[UDP_PACKETS];
-	int _packetIdx;
-	Packet* _current;
-
-public:
-	static IPAddress _lastAddress;
-	static uint16_t _lastPort;
-	UdpServer() :
-			Actor("UdpServer") {
-		_packetIdx = 0;
-		_packet[_packetIdx].used = false;
-		_current = &_packet[0];
-	}
-
-	void onWifiConnect(Header h) {
-		begin(1883);
-		Log.setOutput(udpLog);
-	}
-
-	void loop() {
-		int length;
-		if (length = parsePacket()) {	// received data
-			if (length > UDP_MAX_SIZE) {
-				LOGF(" UDP packet too big");
-				return;
-			}
-			if (_packet[_packetIdx].used) {
-				LOGF(" UDP buffer overflow");
-				return;
-			}
-			/*		LOGF(" UDP rxd %s:%d in packet %d", remoteIP().toString().c_str(),
-			 remotePort(), _packetIdx);*/
-			_lastAddress = remoteIP();
-			_lastPort = remotePort();
-			_current = &_packet[_packetIdx];
-			read(_current->buffer, length); // read the packet into the buffer
-			_current->buffer[length] = '\0';
-			StaticJsonBuffer<200> request;
-			JsonObject& req = request.parseObject(_current->buffer);
-			StaticJsonBuffer<1000> reply;
-			JsonObject& repl = reply.createObject();
-			if (!req.success()) {
-				LOGF(" UDP message JSON parsing fails");
-				return;
-			} else {
-				handle(repl, req);
-				String str;
-				repl.printTo(str);
-				beginPacket(remoteIP(), remotePort());
-				write(str.c_str(), str.length());
-				endPacket();
-			}
-			publish(RXD);
-			_packetIdx = ++_packetIdx % UDP_PACKETS;
-		}
-	}
-};
-
-UdpServer udp;
-IPAddress UdpServer::_lastAddress=IPAddress(192,168,0,210);
-uint16_t UdpServer::_lastPort=3881;
-
-void udpLog(char* str, uint32_t length) {
-	WiFiUDP Udp;
-	Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
-	Udp.write(str, length);
-	Udp.endPacket();
+//	resp["ipaddr"] = UdpServer::_lastAddress.toString();
+//	resp["port"] = UdpServer::_lastPort;
 }
 
 extern "C" void setup() {
@@ -359,7 +351,6 @@ extern "C" void setup() {
 	Actor::initAll();
 	return;
 }
-
 
 extern "C" void loop() {
 	Actor::eventLoop();
