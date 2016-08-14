@@ -21,7 +21,11 @@ enum {
 	BL_GO = 0x21,
 	BL_WRITE_MEMORY = 0x31,
 	BL_ERASE_MEMORY = 0x43,
-	BL_EXTENDED_ERASE_MEMORY = 0x44
+	BL_EXTENDED_ERASE_MEMORY = 0x44,
+	BL_WRITE_PROTECT = 0x63,
+	BL_WRITE_UNPROTECT = 0x73,
+	BL_READOUT_PROTECT = 0x82,
+	BL_READOUT_UNPROTECT = 0x92
 } BootLoaderCommand;
 #define XOR(xxx) (xxx ^ 0xFF)
 
@@ -101,7 +105,7 @@ Erc Stm32::readVar(Bytes& in, uint32_t max, uint32_t time) {
 		};
 		if (Serial.available()) {
 			count = Serial.read() + 1;
-			in.write(count - 1);
+//			in.write(count - 1);
 			break;
 		}
 	}
@@ -188,14 +192,35 @@ Erc Stm32::getId(uint16_t& id) {
 	return erc;
 }
 
-Erc Stm32::get(Bytes& cmds) {
+Erc Stm32::get(uint8_t& version, Bytes& cmds) {
 	byte GET[] = { BL_GET, XOR(BL_GET) };
+	Bytes buffer(30);
 	Bytes out(GET, 2);
 	flush();
 	Erc erc = E_OK;
 	if ((erc = waitAck(out, cmds, 1, DELAY)) == E_OK) {
 		cmds.clear();
-		if ((erc = readVar(cmds, 30, DELAY)) == E_OK) {
+		if ((erc = readVar(buffer, 30, DELAY)) == E_OK) {
+			buffer.offset(0);
+			version = buffer.read();
+			while (buffer.hasData())
+				cmds.write(buffer.read());
+		}
+	}
+	return erc;
+}
+
+Erc Stm32::getVersion(uint8_t& version) {
+	byte GET_VERSION[] = { BL_GET_VERSION, XOR(BL_GET_VERSION) };
+	Bytes out(GET_VERSION, 2);
+	Bytes in(4);
+	Bytes noData(0);
+	flush();
+	Erc erc = E_OK;
+	if ((erc = waitAck(out, in, 1, DELAY)) == E_OK) {
+		in.clear();
+		if ((erc = waitAck(noData, in, 4, DELAY)) == E_OK) {
+			version = in.peek(0);
 		}
 	}
 	return erc;
@@ -313,6 +338,64 @@ Erc Stm32::extendedEraseMemory() {
 	return erc;
 }
 
+Erc Stm32::writeProtect(Bytes& sectors) {
+	byte WP[] = { BL_WRITE_PROTECT, XOR(BL_WRITE_PROTECT) };
+
+	Bytes out(0);
+	Bytes noData(0);
+	flush();
+	Erc erc = E_OK;
+	erc = waitAck(out.map(WP, 2), in, 1, DELAY);
+	if (erc)
+		return erc;
+	Serial.write(sectors.length() - 1);
+	Serial.write(sectors.data(), sectors.length());
+	Serial.write(
+			((byte) (sectors.length() - 1))
+					^ xorBytes(sectors.data(), sectors.length()));
+	erc = waitAck(noData, in, 10, 200);
+	return erc;
+}
+
+Erc Stm32::writeUnprotect() {
+	byte WUP[] = { BL_WRITE_UNPROTECT, XOR(BL_WRITE_UNPROTECT) };
+	Bytes out(0);
+	Bytes noData(0);
+	flush();
+	Erc erc = E_OK;
+	erc = waitAck(out.map(WUP, 2), in, 1, DELAY);
+	if (erc)
+		return erc;
+	erc = waitAck(noData, in, 1, DELAY);
+	return erc;
+}
+
+Erc Stm32::readoutProtect() {
+	byte RDP[] = { BL_READOUT_PROTECT, XOR(BL_READOUT_PROTECT) };
+	Bytes out(0);
+	Bytes noData(0);
+	flush();
+	Erc erc = E_OK;
+	erc = waitAck(out.map(RDP, 2), in, 1, DELAY);
+	if (erc)
+		return erc;
+	erc = waitAck(noData, in, 1, DELAY);
+	return erc;
+}
+
+Erc Stm32::readoutUnprotect() {
+	byte RDUP[] = { BL_READOUT_UNPROTECT, XOR(BL_READOUT_UNPROTECT) };
+	Bytes out(0);
+	Bytes noData(0);
+	flush();
+	Erc erc = E_OK;
+	erc = waitAck(out.map(RDUP, 2), in, 1, DELAY);
+	if (erc)
+		return erc;
+	erc = waitAck(noData, in, 1, DELAY);
+	return erc;
+}
+
 bool Stm32::timeout() {
 	return _timeout < millis();
 }
@@ -328,7 +411,7 @@ uint32_t lastDataReceived = 0;
 uint32_t firstDataReceived = 0;
 
 void Stm32::loop() {
-	if (Serial.available() && (uartBufferOffset==0) ) {
+	if (Serial.available() && (uartBufferOffset == 0)) {
 		firstDataReceived = millis();
 	}
 	while (Serial.available()) {

@@ -149,7 +149,7 @@ unsigned long strtoul(const char *nptr, char **endptr, register int base) {
 }
 
 //________________________________________________Se_________________
-uint32_t BAUDRATE=115200;
+uint32_t BAUDRATE = 115200;
 Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
 LedBlinker led;
 // TcpServer tcpServer(23);
@@ -274,32 +274,58 @@ void handle(JsonObject& resp, JsonObject& req) {
 	resp["reply"] = req["request"];
 	uint32_t startTime = millis();
 	Erc erc = 0;
-	if (cmd.equals("reset")) {
+	if (cmd.equals("resetBootloader")) {
+
 		erc = stm32.resetSystem();
+
+	} else if (cmd.equals("resetFlash")) {
+
+		erc = stm32.resetFlash();
+
+	} else if (cmd.equals("goFlash")) {
+
+		uint32_t address = req["address"];
+		erc = stm32.go(address);
+		resp["address"] = address;
+
 	} else if (cmd.equals("status")) {
+
 		resp["esp_id"] = ESP.getChipId();
-		resp["freq_Mhz"] = ESP.getCpuFreqMHz();
-		resp["flash_size"] = ESP.getFlashChipSize();
 		resp["heap"] = ESP.getFreeHeap();
-		resp["Vcc"] = ESP.getVcc();
 		resp["upTime"] = millis();
 		resp["version"] = __DATE__ " " __TIME__;
 		resp["usart.rxd"] = Stm32::_usartRxd;
+		resp["ipaddr"] = UdpServer::_lastAddress.toString();
+		resp["port"] = UdpServer::_lastPort;
+
 	} else if (cmd.equals("getId")) {
+
 		uint16_t chipId;
 		erc = stm32.getId(chipId);
 		if (erc == E_OK) {
 			resp["chipId"] = chipId;
 		}
+
+	} else if (cmd.equals("getVersion")) {
+
+		uint8_t version;
+		erc = stm32.getVersion(version);
+		if (erc == E_OK) {
+			resp["version"] = version;
+		}
+
 	} else if (cmd.equals("get")) {
 
 		Bytes data(30);
 		Str strData(60);
-		erc = stm32.get(data);
+		uint8_t version;
+		erc = stm32.get(version,data);
 		if (erc == E_OK) {
 			erc = Base64::encode(strData, data);
 			resp["cmds"] = String(strData.c_str());
+			resp["version"] = version;
 		}
+
 	} else if (cmd.equals("writeMemory")) {
 
 		Bytes data(256);
@@ -311,6 +337,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 		if (erc == E_OK) {
 			erc = stm32.writeMemory(address, data);
 		}
+
 	} else if (cmd.equals("eraseMemory")) {
 
 		Bytes pages(256);
@@ -318,12 +345,15 @@ void handle(JsonObject& resp, JsonObject& req) {
 		erc = Base64::decode(pages, str);
 		resp["length"] = pages.length();
 		erc = stm32.eraseMemory(pages);
+
 	} else if (cmd.equals("extendedEraseMemory")) {
 
 		erc = stm32.extendedEraseMemory();
+
 	} else if (cmd.equals("eraseAll")) {
 
 		erc = stm32.eraseAll();
+
 	} else if (cmd.equals("readMemory")) {
 
 		Str strData(410);
@@ -337,28 +367,47 @@ void handle(JsonObject& resp, JsonObject& req) {
 			erc = Base64::encode(strData, data);
 			resp["data"] = String(strData.c_str());
 		}
-	} else if (cmd.equals("go")) {
-		erc = stm32.resetFlash();
+
+	} else if (cmd.equals("writeProtect")) {
+
+		Bytes data(256);
+		Str str((const char*) req["data"]);
+		erc = Base64::decode(data, str);
+		erc = stm32.writeProtect(data);
+
+	} else if (cmd.equals("writeUnprotect")) {
+
+		erc = stm32.writeUnprotect();
+
+	} else if (cmd.equals("readoutProtect")) {
+
+		erc = stm32.readoutProtect();
+
+	} else if (cmd.equals("readoutUnprotect")) {
+
+		erc = stm32.readoutUnprotect();
 
 	} else if (cmd.equals("settings")) {
-		if ( req.containsKey("baudrate")) {
-			BAUDRATE= req["baudrate"];
-			resp["baudrate"]=BAUDRATE;
+
+		if (req.containsKey("baudrate")) {
+			BAUDRATE = req["baudrate"];
+			resp["baudrate"] = BAUDRATE;
 		}
+
 	} else {
 		erc = EINVAL;
 	}
 	resp["delta"] = millis() - startTime;
 	resp["error"] = erc;
-//	resp["ipaddr"] = UdpServer::_lastAddress.toString();
-//	resp["port"] = UdpServer::_lastPort;
+
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
 	Serial.swap();
 }
 
 extern "C" void setup() {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
-	Serial1.begin(BAUDRATE, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_TX_ONLY);
+	Serial1.begin(BAUDRATE, SerialConfig::SERIAL_8E1,
+			SerialMode::SERIAL_TX_ONLY);
 	led.init();
 	LOGF(" starting .... ");
 	delay(100);

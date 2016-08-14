@@ -14,7 +14,7 @@
 #include <Base64.h>
 #include <Bytes.h>
 
-class Stm32 : public Actor {
+class Stm32: public Actor {
 	static bool _alt_serial;
 	static bool _boot0;
 	static uint64_t _timeout;
@@ -29,34 +29,39 @@ public:
 		X_RESET,
 		X_BOOT0
 	};
-	Stm32() :Actor("Stm32"){
+	Stm32() :
+			Actor("Stm32") {
 
 	}
-	 Erc begin();
+	Erc begin();
 
-	 Erc resetFlash();
-	 Erc resetSystem();
-	 Erc getId(uint16_t& id);
-	 Erc get(Bytes& cmds);
-	 Erc writeMemory(uint32_t address,Bytes& data);
-	 Erc readMemory(uint32_t address,uint32_t length,Bytes& data);
-	 Erc eraseMemory(Bytes& pages);
-	 Erc extendedEraseMemory();
-	 Erc eraseAll();
-	 Erc go(uint32_t address);
+	Erc resetFlash();
+	Erc resetSystem();
+	Erc getId(uint16_t& id);
+	Erc getVersion(uint8_t& version);
+	Erc get(uint8_t& version,Bytes& cmds);
+	Erc writeMemory(uint32_t address, Bytes& data);
+	Erc readMemory(uint32_t address, uint32_t length, Bytes& data);
+	Erc eraseMemory(Bytes& pages);
+	Erc extendedEraseMemory();
+	Erc eraseAll();
+	Erc writeProtect(Bytes& sectors);
+	Erc writeUnprotect();
+	Erc readoutProtect();
+	Erc readoutUnprotect();
+	Erc go(uint32_t address);
 
-	 void loop();
+	void loop();
 
-	 Erc waitAck(Bytes& out,Bytes& in,uint32_t count, uint32_t timeout ) ;
-	 Erc readVar(Bytes& in,uint32_t max, uint32_t timeout ) ;
-	 Erc read(Bytes& in,uint32_t lenghth,uint32_t timeout);
-	 Erc setBoot0(bool);
-	 Erc setAltSerial(bool);
-	 Erc engine(Bytes& reply, Bytes& req);
-	 Erc boot0Flash();
-	 Erc boot0System();
-	 bool timeout();
-	 void timeout(uint32_t delta);
+	Erc waitAck(Bytes& out, Bytes& in, uint32_t count, uint32_t timeout);
+	Erc readVar(Bytes& in, uint32_t max, uint32_t timeout);
+	Erc read(Bytes& in, uint32_t lenghth, uint32_t timeout);
+	Erc setBoot0(bool);
+	Erc setAltSerial(bool);
+	Erc engine(Bytes& reply, Bytes& req);
+	Erc boot0Flash();
+	Erc boot0System();bool timeout();
+	void timeout(uint32_t delta);
 };
 
 #endif /* STM32_H_ */
