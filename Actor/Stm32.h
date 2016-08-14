@@ -14,11 +14,12 @@
 #include <Base64.h>
 #include <Bytes.h>
 
-class Stm32  {
+class Stm32 : public Actor {
 	static bool _alt_serial;
 	static bool _boot0;
 	static uint64_t _timeout;
 public:
+	static uint32_t _usartRxd;
 	enum Op {
 		X_WAIT_ACK = 0x40,
 		X_SEND = 0x41,
@@ -28,14 +29,19 @@ public:
 		X_RESET,
 		X_BOOT0
 	};
+	Stm32() :Actor("Stm32"){
+
+	}
 	 Erc begin();
 
-	 Erc reset();
+	 Erc resetFlash();
+	 Erc resetSystem();
 	 Erc getId(uint16_t& id);
 	 Erc get(Bytes& cmds);
 	 Erc writeMemory(uint32_t address,Bytes& data);
 	 Erc readMemory(uint32_t address,uint32_t length,Bytes& data);
 	 Erc eraseMemory(Bytes& pages);
+	 Erc extendedEraseMemory();
 	 Erc eraseAll();
 	 Erc go(uint32_t address);
 
@@ -47,6 +53,8 @@ public:
 	 Erc setBoot0(bool);
 	 Erc setAltSerial(bool);
 	 Erc engine(Bytes& reply, Bytes& req);
+	 Erc boot0Flash();
+	 Erc boot0System();
 	 bool timeout();
 	 void timeout(uint32_t delta);
 };

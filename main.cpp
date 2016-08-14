@@ -149,6 +149,7 @@ unsigned long strtoul(const char *nptr, char **endptr, register int base) {
 }
 
 //________________________________________________Se_________________
+uint32_t BAUDRATE=115200;
 Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
 LedBlinker led;
 // TcpServer tcpServer(23);
@@ -195,12 +196,14 @@ class UdpServer: public Actor, public WiFiUDP {
 private:
 
 	char buffer[UDP_MAX_SIZE];	//
+	bool connected;
 
 public:
 	static IPAddress _lastAddress;
 	static uint16_t _lastPort;
 	UdpServer() :
 			Actor("UdpServer") {
+		connected = false;
 	}
 
 	void onWifiConnect(Header h) {
@@ -208,9 +211,14 @@ public:
 		Log.setOutput(udpLog);
 	}
 
+	bool isConnected() {
+		return connected;
+	}
+
 	void loop() {
 		int length;
 		if (length = parsePacket()) {	// received data
+			connected = true;
 			if (length > UDP_MAX_SIZE) {
 				LOGF(" UDP packet too big");
 				return;
@@ -250,20 +258,24 @@ IPAddress UdpServer::_lastAddress = IPAddress(192, 168, 0, 211);
 uint16_t UdpServer::_lastPort = 1883;
 
 void udpLog(char* str, uint32_t length) {
-	WiFiUDP Udp;
-	Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
-	Udp.write(str, length);
-	Udp.endPacket();
+	if (udp.isConnected()) {
+		WiFiUDP Udp;
+		Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
+		Udp.write(str, length);
+		Udp.endPacket();
+	}
 }
 
 void handle(JsonObject& resp, JsonObject& req) {
+	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
+	Serial.swap();
 	String cmd = req["request"];
 	resp["id"] = req["id"];
 	resp["reply"] = req["request"];
 	uint32_t startTime = millis();
 	Erc erc = 0;
 	if (cmd.equals("reset")) {
-		erc = stm32.reset();
+		erc = stm32.resetSystem();
 	} else if (cmd.equals("status")) {
 		resp["esp_id"] = ESP.getChipId();
 		resp["freq_Mhz"] = ESP.getCpuFreqMHz();
@@ -272,6 +284,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 		resp["Vcc"] = ESP.getVcc();
 		resp["upTime"] = millis();
 		resp["version"] = __DATE__ " " __TIME__;
+		resp["usart.rxd"] = Stm32::_usartRxd;
 	} else if (cmd.equals("getId")) {
 		uint16_t chipId;
 		erc = stm32.getId(chipId);
@@ -305,6 +318,9 @@ void handle(JsonObject& resp, JsonObject& req) {
 		erc = Base64::decode(pages, str);
 		resp["length"] = pages.length();
 		erc = stm32.eraseMemory(pages);
+	} else if (cmd.equals("extendedEraseMemory")) {
+
+		erc = stm32.extendedEraseMemory();
 	} else if (cmd.equals("eraseAll")) {
 
 		erc = stm32.eraseAll();
@@ -322,9 +338,13 @@ void handle(JsonObject& resp, JsonObject& req) {
 			resp["data"] = String(strData.c_str());
 		}
 	} else if (cmd.equals("go")) {
-		uint32_t address = req["address"];
-		resp["address"] = address;
-		erc = stm32.go(address);
+		erc = stm32.resetFlash();
+
+	} else if (cmd.equals("settings")) {
+		if ( req.containsKey("baudrate")) {
+			BAUDRATE= req["baudrate"];
+			resp["baudrate"]=BAUDRATE;
+		}
 	} else {
 		erc = EINVAL;
 	}
@@ -332,11 +352,13 @@ void handle(JsonObject& resp, JsonObject& req) {
 	resp["error"] = erc;
 //	resp["ipaddr"] = UdpServer::_lastAddress.toString();
 //	resp["port"] = UdpServer::_lastPort;
+	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
+	Serial.swap();
 }
 
 extern "C" void setup() {
-	Serial.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
-	Serial1.begin(115200, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_TX_ONLY);
+	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
+	Serial1.begin(BAUDRATE, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_TX_ONLY);
 	led.init();
 	LOGF(" starting .... ");
 	delay(100);

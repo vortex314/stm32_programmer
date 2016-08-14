@@ -49,8 +49,18 @@ Erc Stm32::begin() {
 	pinMode(PIN_RESET, OUTPUT);
 	digitalWrite(PIN_RESET, 1);
 	pinMode(PIN_BOOT0, OUTPUT);
-	setBoot0(true);
+	boot0Flash();
 	setAltSerial(true);
+}
+
+Erc Stm32::boot0Flash() {
+	digitalWrite(PIN_BOOT0, 0);
+	return E_OK;
+}
+
+Erc Stm32::boot0System() {
+	digitalWrite(PIN_BOOT0, 1);
+	return E_OK;
 }
 
 Str str(1024);
@@ -144,7 +154,18 @@ byte slice(uint32_t word, int offset) {
 	return (byte) ((word >> (offset * 8)) & 0xFF);
 }
 
-Erc Stm32::reset() {
+Erc Stm32::resetFlash() {
+	boot0Flash();
+	digitalWrite(PIN_RESET, 0);
+	delay(10);
+	digitalWrite(PIN_RESET, 1);
+	delay(10);
+	Serial.write(0x7F);	// send sync for bootloader
+	return E_OK;
+}
+
+Erc Stm32::resetSystem() {
+	boot0System();
 	digitalWrite(PIN_RESET, 0);
 	delay(10);
 	digitalWrite(PIN_RESET, 1);
@@ -265,7 +286,7 @@ Erc Stm32::eraseMemory(Bytes& pages) {
 
 Erc Stm32::eraseAll() {
 	byte ERASE_MEMORY[] = { BL_ERASE_MEMORY, XOR(BL_ERASE_MEMORY) };
-	byte ALL_PAGES[] = {0xFF,0x00};
+	byte ALL_PAGES[] = { 0xFF, 0x00 };
 	Bytes out(0);
 	Bytes noData(0);
 	flush();
@@ -274,6 +295,21 @@ Erc Stm32::eraseAll() {
 	if (erc)
 		return erc;
 	erc = waitAck(out.map(ALL_PAGES, 2), in, 1, 200);
+	return erc;
+}
+
+Erc Stm32::extendedEraseMemory() {
+	byte EXTENDED_ERASE_MEMORY[] = { BL_EXTENDED_ERASE_MEMORY, XOR(
+			BL_EXTENDED_ERASE_MEMORY) };
+	byte ALL_PAGES[] = { 0xFF, 0xFF, 0 };
+	Bytes out(0);
+	Bytes noData(0);
+	flush();
+	Erc erc = E_OK;
+	erc = waitAck(out.map(EXTENDED_ERASE_MEMORY, 2), in, 1, DELAY);
+	if (erc)
+		return erc;
+	erc = waitAck(out.map(ALL_PAGES, 3), in, 1, 200);
 	return erc;
 }
 
@@ -286,15 +322,27 @@ void Stm32::timeout(uint32_t delta) {
 }
 extern void udpLog(char* str, uint32_t length);
 char uartBuffer[256];
-int uartBufferOffset=0;
+int uartBufferOffset = 0;
+uint32_t Stm32::_usartRxd = 0;
+uint32_t lastDataReceived = 0;
+uint32_t firstDataReceived = 0;
 
-void Stm32::loop(){
-	while(Serial.available()) {
-		uartBuffer[uartBufferOffset++ % sizeof(uartBuffer)]=Serial.read();
-	};
-	if ( uartBufferOffset) {
-		udpLog(uartBuffer,uartBufferOffset);
-		uartBufferOffset=0;
+void Stm32::loop() {
+	if (Serial.available() && (uartBufferOffset==0) ) {
+		firstDataReceived = millis();
 	}
+	while (Serial.available()) {
+		_usartRxd++;
+		uartBuffer[uartBufferOffset] = Serial.read();
+		if (uartBufferOffset < sizeof(uartBuffer))
+			uartBufferOffset++;
+		lastDataReceived = millis();
+	}; // buffer full or timed out 100 msec
+	if (uartBufferOffset)
+		if ((uartBufferOffset == sizeof(uartBuffer))
+				|| ((lastDataReceived - firstDataReceived) > 100)) {
+			udpLog(uartBuffer, uartBufferOffset);
+			uartBufferOffset = 0;
+		}
 }
 
