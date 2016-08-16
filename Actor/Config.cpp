@@ -8,6 +8,9 @@
 #include "Config.h"
 #define SIZE 512
 #define MAGIC 0xA1B1
+
+
+
 ConfigClass::ConfigClass() {
 
 }
@@ -56,4 +59,6 @@ void ConfigClass::menu() {
 	}
 
 }
+
+ConfigClass Config;
 

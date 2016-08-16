@@ -13,6 +13,8 @@
 #include <EEPROM.h>
 #include <map>
 
+
+
 class ConfigClass {
 	Cbor* _cbor;
 	std::map<const char*,Cbor*>* _map;
@@ -23,14 +25,14 @@ public:
 	ConfigClass();
 	virtual ~ConfigClass();
 	void get(const char*, uint32_t &);
-	void get(const char*, Str&);
+	void get(const char*, Str&,const char* defaultValue);
 	void set(const char*, uint32_t &);
-	void set(const char*, Str&);
+	void set(const char*, Str&,const char* defaultValue);
 	void menu();
 	void begin();
 	void end();
 };
 
-ConfigClass Config;
+extern ConfigClass Config;
 
 #endif /* ACTOR_CONFIG_H_ */

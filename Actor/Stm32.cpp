@@ -49,11 +49,12 @@ Erc Stm32::setBoot0(bool flag) {
 	return E_OK;
 }
 
-Erc Stm32::begin() {
+void Stm32::init() {
 	pinMode(PIN_RESET, OUTPUT);
 	digitalWrite(PIN_RESET, 1);
 	pinMode(PIN_BOOT0, OUTPUT);
 	boot0Flash();
+	_mode = M_SYSTEM;
 	setAltSerial(true);
 }
 
@@ -164,7 +165,7 @@ Erc Stm32::resetFlash() {
 	delay(10);
 	digitalWrite(PIN_RESET, 1);
 	delay(10);
-	Serial.write(0x7F);	// send sync for bootloader
+	_mode= M_FLASH;
 	return E_OK;
 }
 
@@ -175,6 +176,7 @@ Erc Stm32::resetSystem() {
 	digitalWrite(PIN_RESET, 1);
 	delay(10);
 	Serial.write(0x7F);	// send sync for bootloader
+	_mode= M_SYSTEM;
 	return E_OK;
 }
 
@@ -403,29 +405,34 @@ bool Stm32::timeout() {
 void Stm32::timeout(uint32_t delta) {
 	_timeout = millis() + delta;
 }
-extern void udpLog(char* str, uint32_t length);
-char uartBuffer[256];
-int uartBufferOffset = 0;
+extern void udpSend(uint8_t* data, uint32_t length);
+
+Bytes uartBuffer(256);
 uint32_t Stm32::_usartRxd = 0;
 uint32_t lastDataReceived = 0;
 uint32_t firstDataReceived = 0;
+bool sendNow = false;
 
 void Stm32::loop() {
-	if (Serial.available() && (uartBufferOffset == 0)) {
+	if (Serial.available() && (uartBuffer.length() == 0)) {
 		firstDataReceived = millis();
 	}
 	while (Serial.available()) {
+		byte b = Serial.read();
 		_usartRxd++;
-		uartBuffer[uartBufferOffset] = Serial.read();
-		if (uartBufferOffset < sizeof(uartBuffer))
-			uartBufferOffset++;
+		if (b == '\n')
+			sendNow = true;
+		uartBuffer.write(b);
 		lastDataReceived = millis();
-	}; // buffer full or timed out 100 msec
-	if (uartBufferOffset)
-		if ((uartBufferOffset == sizeof(uartBuffer))
-				|| ((lastDataReceived - firstDataReceived) > 100)) {
-			udpLog(uartBuffer, uartBufferOffset);
-			uartBufferOffset = 0;
-		}
+	};
+	if (uartBuffer.length() > 200)
+		sendNow = true;
+	if (((lastDataReceived - firstDataReceived) > 100))	// more then 100 msec delay
+		sendNow = true;
+	if (sendNow && uartBuffer.length()) {
+		udpSend( uartBuffer.data(), uartBuffer.length());
+		uartBuffer.clear();
+		sendNow = false;
+	}
 }
 

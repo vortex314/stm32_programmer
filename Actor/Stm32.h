@@ -19,6 +19,12 @@ class Stm32: public Actor {
 	static bool _boot0;
 	static uint64_t _timeout;
 public:
+	typedef enum {
+		M_SYSTEM, M_FLASH
+	} Mode;
+private:
+	Mode _mode;
+public:
 	static uint32_t _usartRxd;
 	enum Op {
 		X_WAIT_ACK = 0x40,
@@ -31,15 +37,16 @@ public:
 	};
 	Stm32() :
 			Actor("Stm32") {
-
+		_mode = M_SYSTEM;
 	}
+	void init();
 	Erc begin();
 
 	Erc resetFlash();
 	Erc resetSystem();
 	Erc getId(uint16_t& id);
 	Erc getVersion(uint8_t& version);
-	Erc get(uint8_t& version,Bytes& cmds);
+	Erc get(uint8_t& version, Bytes& cmds);
 	Erc writeMemory(uint32_t address, Bytes& data);
 	Erc readMemory(uint32_t address, uint32_t length, Bytes& data);
 	Erc eraseMemory(Bytes& pages);
@@ -50,6 +57,9 @@ public:
 	Erc readoutProtect();
 	Erc readoutUnprotect();
 	Erc go(uint32_t address);
+	int getMode() {
+		return _mode;
+	}
 
 	void loop();
 

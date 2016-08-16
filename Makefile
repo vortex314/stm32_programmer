@@ -21,7 +21,7 @@
 ESP_LIBS ?= /home/lieven/workspace/Arduino/libraries
 ESPTOOL = ../esp8266_tools/tools/esptool.py #//TODO
 RESET = ../esp8266_tools/tools/reset
-INCLUDE_DIRS ?= ../Common/inc . ./Actor ./esp8266 ./include ../ArduinoJson ../pubsubclient/src 
+INCLUDE_DIRS ?= ../Common/inc . ./Actor ./esp8266 ./include ../ArduinoJson  
 CORE_DIR ?= $(ESP_LIBS)
 # USER_DIRS ?= $(ESP_LIBS)
 # LIBS ?= .

@@ -4,21 +4,23 @@
 #include <Sys.h>
 #include <Wifi.h>
 #include <LedBlinker.h>
-#include <TcpServer.h>
-#include <TcpClient.h>
 #include <WiFiUdp.h>
-
 #include <ESP8266mDNS.h>
 #include <Stm32.h>
 #include <mDNS.h>
 #include <ctype.h>
 #include <uart.h>
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
 #include <Udp.h>
-//#include <WifiWebServer.h>
+#include <ctype.h>
+#include <cstdlib>
+#include <Base64.h>
+
+//________________________________________________Se_________________
+uint32_t BAUDRATE = 115200;
+Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
+LedBlinker led;
+Stm32 stm32;
+mDNS mdns;
 
 int islower(int a) {
 	return (a >= 'a' && a <= 'z');
@@ -148,46 +150,9 @@ unsigned long strtoul(const char *nptr, char **endptr, register int base) {
 	return strtol(nptr, endptr, base);
 }
 
-//________________________________________________Se_________________
-uint32_t BAUDRATE = 115200;
-Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
-LedBlinker led;
-// TcpServer tcpServer(23);
-// UdpServer udpServer(3881);
-//WifiWebServer webServer(80);
-
-Stm32 stm32;
-mDNS mdns;
-
-#include <Base64.h>
 #include <ArduinoJson.h>
-//#include <MQTT.h>
-#include <PubSubClient.h>
 
-//Bytes bytesIn(450);
-//Bytes bytesOut(450);
-//Str strOut(450);
 void handle(JsonObject& resp, JsonObject& req);
-
-/*
- void onMessageReceived(String topic, String message) {
- //	LOGF(" recv %s : %s \n", topic.c_str(), message.c_str());
-
- const int SIZE = JSON_OBJECT_SIZE(6) + JSON_ARRAY_SIZE(1);
- StaticJsonBuffer<1000> request;
- StaticJsonBuffer<1000> reply;
- JsonObject& req = request.parseObject(message);
- JsonObject& repl = reply.createObject();
- if (!req.success()) {
- LOGF(" parsing request failed ");
- } else {
- handle(repl, req);
- String str;
- repl.printTo(str);
-
- }
- }*/
-
 void udpLog(char* str, uint32_t length);
 
 #define UDP_MAX_SIZE	512
@@ -241,7 +206,6 @@ public:
 				return;
 			} else {
 				handle(repl, req);
-//				repl["remoteIp"] = remoteIP().toString();
 				String str;
 				repl.printTo(str);
 				beginPacket(remoteIP(), remotePort());
@@ -262,8 +226,16 @@ void udpLog(char* str, uint32_t length) {
 		WiFiUDP Udp;
 		Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
 		Udp.write(str, length);
+		Udp.write("\n");
 		Udp.endPacket();
 	}
+}
+
+void udpSend(uint8_t* data, uint32_t length) {
+	WiFiUDP Udp;
+	Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
+	Udp.write(data, length);
+	Udp.endPacket();
 }
 
 void handle(JsonObject& resp, JsonObject& req) {
@@ -297,6 +269,9 @@ void handle(JsonObject& resp, JsonObject& req) {
 		resp["usart.rxd"] = Stm32::_usartRxd;
 		resp["ipaddr"] = UdpServer::_lastAddress.toString();
 		resp["port"] = UdpServer::_lastPort;
+		resp["mode"] =
+				stm32.getMode() == Stm32::M_FLASH ?
+						"APPLICATION" : "BOOTLOADER";
 
 	} else if (cmd.equals("getId")) {
 
@@ -319,7 +294,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 		Bytes data(30);
 		Str strData(60);
 		uint8_t version;
-		erc = stm32.get(version,data);
+		erc = stm32.get(version, data);
 		if (erc == E_OK) {
 			erc = Base64::encode(strData, data);
 			resp["cmds"] = String(strData.c_str());
@@ -406,12 +381,9 @@ void handle(JsonObject& resp, JsonObject& req) {
 
 extern "C" void setup() {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
-	Serial1.begin(BAUDRATE, SerialConfig::SERIAL_8E1,
-			SerialMode::SERIAL_TX_ONLY);
-	led.init();
+
 	LOGF(" starting .... ");
 	delay(100);
-	stm32.begin();
 
 	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
 	wifi.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
