@@ -15,12 +15,12 @@
 #include <cstdlib>
 #include <Base64.h>
 
-//________________________________________________Se_________________
 uint32_t BAUDRATE = 115200;
-Wifi wifi("Merckx", "LievenMarletteEwoutRonald");
+Wifi wifi;
 LedBlinker led;
 Stm32 stm32;
 mDNS mdns;
+
 
 int islower(int a) {
 	return (a >= 'a' && a <= 'z');
@@ -378,11 +378,21 @@ void handle(JsonObject& resp, JsonObject& req) {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
 	Serial.swap();
 }
+#include <Config.h>
+
+//________________________________________________Se_________________
+#define SSID "Merckx"
+#define PASSWORD "LievenMarletteEwoutRonald"
 
 extern "C" void setup() {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
+	String ssid,password;
 
-	LOGF(" starting .... ");
+	Config.get("SSID",ssid,SSID);
+	Config.get("PASSWORD",password,PASSWORD);
+	wifi.setConfig(ssid,password);
+
+	LOGF(" starting Wifi %s .... ",ssid.c_str());
 	delay(100);
 
 	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);

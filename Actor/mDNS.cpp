@@ -15,9 +15,10 @@ mDNS::~mDNS() {
 }
 
 void mDNS::onWifiConnected(Header hdr) {
-	if (!MDNS.begin("esp8266")) {
-		Log.printf("Error setting up MDNS responder!");
+	if (!MDNS.begin(WiFi.hostname().c_str())) {
+		LOGF("Error setting up MDNS responder!");
 	}
+	MDNS.addService("wibo", "udp", 1883);
 }
 
 void mDNS::loop() {

@@ -48,6 +48,8 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1339498969" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__ARDUINO__"/>
 									<listOptionValue builtIn="false" value="ARDUINO"/>
+									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
+									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.16840648" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
@@ -73,6 +75,8 @@
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1109015738" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__ARDUINO__"/>
 									<listOptionValue builtIn="false" value="ARDUINO"/>
+									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
+									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1205680694" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
@@ -161,6 +165,8 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.897308332" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__ARDUINO__"/>
 									<listOptionValue builtIn="false" value="ARDUINO"/>
+									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
+									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.382711341" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
@@ -193,6 +199,8 @@
 								<option id="gnu.cpp.compiler.option.preprocessor.def.58934968" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__ARDUINO__"/>
 									<listOptionValue builtIn="false" value="ARDUINO"/>
+									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
+									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1929638243" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>

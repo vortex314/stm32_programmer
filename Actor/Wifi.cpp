@@ -7,10 +7,8 @@
 
 #include "Wifi.h"
 
-Wifi::Wifi(const char* ssid, const char* password) :
+Wifi::Wifi() :
 		Actor("Wifi") {
-	_ssid = ssid;
-	_password = password;
 	state(DISCONNECTED);
 }
 
@@ -34,13 +32,20 @@ void Wifi::state(uint32_t st) {
 }
 
 void Wifi::init() {
-	WiFi.begin(_ssid, _password);
-	LOGF("Connecting to %s ", _ssid);
+	char hostString[16] = {0};
+	 sprintf(hostString, "ESP_%06X", ESP.getChipId());
+	  WiFi.hostname(hostString);
+	WiFi.begin(_ssid.c_str(), _password.c_str());
 	WiFi.enableSTA(true);
 }
 
 void Wifi::loop() {
 	state(WiFi.status() == WL_CONNECTED ? CONNECTED : DISCONNECTED);
+}
+
+void Wifi::setConfig(String& ssid,String& password) {
+	_ssid=ssid;
+	_password=password;
 }
 
 

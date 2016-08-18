@@ -8,26 +8,25 @@
 #ifndef ACTOR_CONFIG_H_
 #define ACTOR_CONFIG_H_
 
-#include <Str.h>
-#include <Cbor.h>
-#include <EEPROM.h>
-#include <map>
-
-
+#include <Arduino.h>
 
 class ConfigClass {
-	Cbor* _cbor;
-	std::map<const char*,Cbor*>* _map;
-	void load();
-	void save();
+	void load(String& config);
+	void save(String& config);
+	void initialize();
+	void initMagic();
+	bool checkMagic();
 
 public:
 	ConfigClass();
 	virtual ~ConfigClass();
-	void get(const char*, uint32_t &);
-	void get(const char*, Str&,const char* defaultValue);
+
+	void get(const char*, uint32_t &, uint32_t defaultValue);
+	void get(const char*, String&, const char* defaultValue);
+
 	void set(const char*, uint32_t &);
-	void set(const char*, Str&,const char* defaultValue);
+	void set(const char*, String&);
+
 	void menu();
 	void begin();
 	void end();

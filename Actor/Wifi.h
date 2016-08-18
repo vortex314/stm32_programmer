@@ -13,13 +13,14 @@
 
 class Wifi: public Actor {
 	bool _connected;
-	const char* _ssid;
-	const char* _password;
+	String _ssid;
+	String _password;
 	enum {
 		DISCONNECTED, CONNECTED
 	} _state;
 public:
-	Wifi(const char* ssid, const char* password);
+	Wifi();
+
 	virtual ~Wifi();
 	void init();
 	void loop();
@@ -27,6 +28,7 @@ public:
 		return _connected;
 	}
 	void state(uint32_t st);
+	void setConfig(String& ssid,String& password);
 
 };
 
