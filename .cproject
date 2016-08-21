@@ -48,8 +48,8 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1339498969" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__ARDUINO__"/>
 									<listOptionValue builtIn="false" value="ARDUINO"/>
-									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
-									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_SSID=${WIFI_SSID}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_PSWD=${WIFI_PSWD}&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.16840648" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
@@ -77,6 +77,8 @@
 									<listOptionValue builtIn="false" value="ARDUINO"/>
 									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
 									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_SSID=${WIFI_SSID}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_PSWD=${WIFI_PSWD}&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1205680694" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
@@ -167,6 +169,8 @@
 									<listOptionValue builtIn="false" value="ARDUINO"/>
 									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
 									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_SSID=${WIFI_SSID}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_PSWD=${WIFI_PSWD}&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.382711341" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
@@ -201,6 +205,8 @@
 									<listOptionValue builtIn="false" value="ARDUINO"/>
 									<listOptionValue builtIn="false" value="SSID=&quot;SSID&quot;"/>
 									<listOptionValue builtIn="false" value="PASSWORD=&quot;LievenMarletteEwoutRonald&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_SSID=${WIFI_SSID}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_PSWD=${WIFI_PSWD}&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1929638243" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>

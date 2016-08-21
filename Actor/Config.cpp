@@ -6,7 +6,7 @@
  */
 #include <EEPROM.h>
 #include "Config.h"
-#include <ArduinoJson.h>
+
 #include <Sys.h>
 #define EEPROM_SIZE 512
 #define EEPROM_MAGIC 0xDEADBEEF
@@ -79,14 +79,14 @@ void ConfigClass::save(String& str) {
 void ConfigClass::set(const char* key, String& value) {
 	String input;
 	load(input);
-	LOGF(" input :%s",input.c_str());
-	StaticJsonBuffer<200> jsonConf;
+//	LOGF(" input :%s",input.c_str());
+	StaticJsonBuffer<400> jsonConf;
 	JsonObject& object = jsonConf.parseObject(input);
 	object[key] = value;
 	String output;
 	object.printTo(output);
 	save(output);
-	LOGF(" output :%s",output.c_str());
+//	LOGF(" output :%s",output.c_str());
 
 }
 
@@ -94,26 +94,28 @@ void ConfigClass::get(const char* key, String& value,
 		const char* defaultValue) {
 	String input;
 	load(input);
-	LOGF(" input :%s",input.c_str());
-	StaticJsonBuffer<200> jsonConf;
+//	LOGF(" input :%s",input.c_str());
+	StaticJsonBuffer<400> jsonConf;
 	JsonObject& object = jsonConf.parseObject(input);
 	if (object.containsKey(key))
 		value = (const char*) object[key];
-	else
+	else {
 		value = defaultValue;
+		set(key,value);
+	}
 }
 
 void ConfigClass::set(const char* key, uint32_t& value) {
 	String input;
 	load(input);
-	LOGF(" input :%s",input.c_str());
-	StaticJsonBuffer<200> jsonConf;
+//	LOGF(" input :%s",input.c_str());
+	StaticJsonBuffer<400> jsonConf;
 	JsonObject& object = jsonConf.parseObject(input);
-	object[key] = value;
+	object[key] = String(value);
 	String output;
 	object.printTo(output);
 	save(output);
-	LOGF(" output :%s",output.c_str());
+//	LOGF(" output :%s",output.c_str());
 
 }
 
@@ -121,13 +123,15 @@ void ConfigClass::get(const char* key, uint32_t& value,
 		uint32_t defaultValue) {
 	String input;
 	load(input);
-	LOGF(" input :%s",input.c_str());
-	StaticJsonBuffer<200> jsonConf;
+//	LOGF(" input :%s",input.c_str());
+	StaticJsonBuffer<400> jsonConf;
 	JsonObject& object = jsonConf.parseObject(input);
 	if (object.containsKey(key))
 		value = object[key];
-	else
+	else{
 		value = defaultValue;
+		set(key,value);
+	}
 }
 
 ConfigClass Config;

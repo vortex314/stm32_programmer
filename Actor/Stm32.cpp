@@ -188,7 +188,7 @@ Erc Stm32::getId(uint16_t& id) {
 	if ((erc = waitAck(out, in, 1, DELAY)) == E_OK) {
 		in.clear();
 		if ((erc = readVar(in, 4, DELAY)) == E_OK) {
-			id = in.peek(1) * 256 + in.peek(2);
+			id = in.peek(0) * 256 + in.peek(1);
 		}
 	}
 	return erc;

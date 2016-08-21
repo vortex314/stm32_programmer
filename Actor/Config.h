@@ -9,10 +9,9 @@
 #define ACTOR_CONFIG_H_
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 class ConfigClass {
-	void load(String& config);
-	void save(String& config);
 	void initialize();
 	void initMagic();
 	bool checkMagic();
@@ -20,6 +19,11 @@ class ConfigClass {
 public:
 	ConfigClass();
 	virtual ~ConfigClass();
+
+	void load(String& config);
+	void save(String& config);
+	void load(JsonObject& config);
+	void save(JsonObject& config);
 
 	void get(const char*, uint32_t &, uint32_t defaultValue);
 	void get(const char*, String&, const char* defaultValue);

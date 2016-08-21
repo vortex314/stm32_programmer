@@ -14,13 +14,13 @@
 #include <ctype.h>
 #include <cstdlib>
 #include <Base64.h>
+#include <Config.h>
 
 uint32_t BAUDRATE = 115200;
 Wifi wifi;
 LedBlinker led;
 Stm32 stm32;
 mDNS mdns;
-
 
 int islower(int a) {
 	return (a >= 'a' && a <= 'z');
@@ -367,7 +367,11 @@ void handle(JsonObject& resp, JsonObject& req) {
 		if (req.containsKey("baudrate")) {
 			BAUDRATE = req["baudrate"];
 			resp["baudrate"] = BAUDRATE;
+			Config.set("uart.baudrate",BAUDRATE);
 		}
+		String config;
+		Config.load(config);
+		resp["config"]=config;
 
 	} else {
 		erc = EINVAL;
@@ -378,21 +382,139 @@ void handle(JsonObject& resp, JsonObject& req) {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
 	Serial.swap();
 }
-#include <Config.h>
+
+
+// START Normal...
+
+#define TIMEOUT_ENTER 50
+#define ENTER 13            // byte value of the Enter key (LF)
+
+void readLine(String& str, int timeout) {
+	int index = 0;
+	if (timeout == 0)
+		timeout = 9999999;
+	unsigned long end = millis() + timeout;
+
+	while (true) {
+		if (millis() > end) {
+			Serial.println("\r\n TIMEOUT ! ");
+			return;
+		}
+		if (Serial.available()) {
+
+			char c = Serial.read();
+			switch (c) {
+			case '\n':
+			case '\r':
+				Serial.print("\r\n");
+				return;
+				break;
+
+			case '\b':
+				// backspace
+				if (str.length() > 0) {
+					str.remove(str.length() - 1);
+					Serial.print(' ');
+				}
+				break;
+
+			default:
+				// normal character entered. add it to the buffer
+				Serial.print(c);
+				str.concat(c);
+				break;
+			}
+		}
+	}
+}
+
+void ask(String question, String& input, int timeout) {
+	Serial.print(question);
+	readLine(input, timeout);
+}
+
+void configMenu() {
+	String configJson;
+	Config.load(configJson);
+	StaticJsonBuffer<400> jsonConf;
+	JsonObject& object = jsonConf.parseObject(configJson);
+	String show;
+	while (true) {
+		show = "";
+		object.printTo(show);
+		Serial.println(
+				"\r\n__________________ Config JSON ________________________________________");
+		Serial.print(show);
+		Serial.println(
+				"\r\n_______________________________________________________________________");
+		Serial.print("\r\n Create, Update, Delete, Save&exit, eXit [cudsx] : ");
+		String line;
+		readLine(line, 0);
+		Serial.println("");
+		if (line.length() == 0)
+			return;
+		else if (line.equals("c") || line.equals("u")) {
+			String key, value;
+			ask("\r key   : ", key, 0);
+			ask("\r value : ", value, 0);
+			object[key] = value;
+		} else if (line.equals("s")) {
+			Serial.println("\r\n Saving.. ");
+			object.printTo(show);
+			Serial.println(show);
+			Config.save(show);
+			Serial.println("done.\r\n Exit. ");
+			return;
+		} else if (line.equals("d")) {
+			String key;
+			ask("\r key   : ", key, 0);
+			object.remove(key);
+		} else if (line.equals("x")) {
+			return;
+		}
+	}
+}
+
+void waitConfig() {
+	String line;
+	unsigned long end = millis() + 5000;
+	while (true) {
+		if (millis() > end) {
+			Serial.println(" input timed out, starting...");
+			break;
+		}
+		Serial.println(" Hit 'x' +Enter for menu :");
+		readLine(line, 10000);
+		if (line.equals("x")) {
+			configMenu();
+			return;
+		} else {
+			Serial.println(" invalid input ");
+			Serial.printf(">>%s<<\n", line.c_str());
+		}
+		line = "";
+	}
+}
 
 //________________________________________________Se_________________
-#define SSID "Merckx"
-#define PASSWORD "LievenMarletteEwoutRonald"
+#ifndef WIFI_SSID
+#define WIFI_SSID "YourNetworkSSID"
+#define WIFI_PWD "YourNetworkPassword"
+#endif
 
 extern "C" void setup() {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
-	String ssid,password;
+	String ssid, password;
 
-	Config.get("SSID",ssid,SSID);
-	Config.get("PASSWORD",password,PASSWORD);
-	wifi.setConfig(ssid,password);
+	waitConfig();
 
-	LOGF(" starting Wifi %s .... ",ssid.c_str());
+	Config.get("uart.baudrate",BAUDRATE,115200);
+
+	Config.get("wifi.ssid", ssid, WIFI_SSID);
+	Config.get("wifi.pswd", password, WIFI_PWD);
+	wifi.setConfig(ssid, password);
+
+	LOGF(" starting Wifi %s .... ", ssid.c_str());
 	delay(100);
 
 	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
