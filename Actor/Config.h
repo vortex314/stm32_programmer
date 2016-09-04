@@ -30,10 +30,6 @@ public:
 
 	void set(const char*, uint32_t &);
 	void set(const char*, String&);
-
-	void menu();
-	void begin();
-	void end();
 };
 
 extern ConfigClass Config;

@@ -19,9 +19,6 @@ ConfigClass::~ConfigClass() {
 
 }
 
-void ConfigClass::begin() {
-	EEPROM.begin(EEPROM_SIZE);
-}
 
 void ConfigClass::initMagic() {
 	uint32_t word = EEPROM_MAGIC;
@@ -49,6 +46,7 @@ bool ConfigClass::checkMagic() {
 void ConfigClass::load(String& str) {
 	EEPROM.begin(EEPROM_SIZE);
 	if (!checkMagic()) {
+		LOGF(" initialize EEPROM with empty config.");
 		initMagic();
 		int address = 4;
 		EEPROM.write(address++, '{');
@@ -64,16 +62,20 @@ void ConfigClass::load(String& str) {
 		str+=(char)b;
 	}
 	EEPROM.end();
+//	LOGF(str.c_str());
 }
 
 void ConfigClass::save(String& str) {
+//	LOGF(str.c_str());
 	EEPROM.begin(EEPROM_SIZE);
 	int address = 4;
 	initMagic();
 	for (int i = 0; i < str.length(); i++)
 		EEPROM.write(address++, str.charAt(i));
 	EEPROM.write(address++, 0);
-	EEPROM.commit();
+	ASSERT_LOG(EEPROM.commit());
+	EEPROM.end();
+
 }
 
 void ConfigClass::set(const char* key, String& value) {

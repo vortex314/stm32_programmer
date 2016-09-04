@@ -39,7 +39,7 @@ void LedBlinker::loop() {
 
 void LedBlinker::blinkFast(Header h) {
 	LOGF("");
-	_interval = 500;
+	_interval = 300;
 }
 
 void LedBlinker::blinkSlow(Header h) {

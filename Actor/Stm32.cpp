@@ -40,14 +40,14 @@ Erc Stm32::setAltSerial(bool flag) {
 	Serial.swap();
 	return E_OK;
 }
-
+/*
 Erc Stm32::setBoot0(bool flag) {
 	if (_boot0 == flag)
 		return E_OK;
 	digitalWrite(PIN_BOOT0, flag);	// 1 : bootloader mode, 0: flash run
 	_boot0 = flag;
 	return E_OK;
-}
+}*/
 
 void Stm32::init() {
 	pinMode(PIN_RESET, OUTPUT);
@@ -93,7 +93,7 @@ Erc Stm32::waitAck(Bytes& out, Bytes& in, uint32_t count, uint32_t time) {
 				break;
 		}
 	}
-	logBytes("ACK", in);
+//	logBytes("ACK", in);
 	return E_OK;
 }
 

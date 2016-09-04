@@ -98,7 +98,7 @@ ESP_TOOL = $(TOOLS_ROOT)/esptool/esptool
 OTA_TOOL = $(TOOLS_ROOT)/espota.py
 
 INCLUDE_DIRS += $(SDK_ROOT)/include $(SDK_ROOT)/lwip/include $(CORE_DIR) $(ESP_ROOT)/variants/generic $(OBJ_DIR)
-C_DEFINES = -D$(DEFINE) -DWIFI_PWD='$(WIFI_PWD)' -DWIFI_SSID='$(WIFI_SSID)'
+C_DEFINES = -D$(DEFINE) -DWIFI_PSWD='$(WIFI_PSWD)' -DWIFI_SSID='$(WIFI_SSID)'
 C_DEFINES += -D__ets__ -DICACHE_FLASH -U__STRICT_ANSI__ -DF_CPU=80000000L -DARDUINO=10605 -DARDUINO_ESP8266_ESP01 -DARDUINO_ARCH_ESP8266 -DESP8266 -D__ESP8266__
 C_INCLUDES = $(foreach dir,$(INCLUDE_DIRS) $(USER_DIRS),-I$(dir))
 C_FLAGS ?= -c -Os -g -Wpointer-arith -Wno-implicit-function-declaration -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals -falign-functions=4 -MMD -std=gnu99 -ffunction-sections -fdata-sections

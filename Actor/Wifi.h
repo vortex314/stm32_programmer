@@ -15,6 +15,7 @@ class Wifi: public Actor {
 	bool _connected;
 	String _ssid;
 	String _password;
+	String _hostname;
 	enum {
 		DISCONNECTED, CONNECTED
 	} _state;
@@ -28,7 +29,10 @@ public:
 		return _connected;
 	}
 	void state(uint32_t st);
-	void setConfig(String& ssid,String& password);
+	void setConfig(String& ssid,String& password,String& hostname);
+	const char* getHostname();
+	const char* getSSID();
+	const char* getPassword();
 
 };
 

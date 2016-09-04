@@ -32,13 +32,8 @@ void Wifi::state(uint32_t st) {
 	}
 }
 
-
 void Wifi::init() {
-	char hostString[16] = { 0 };
-	sprintf(hostString, "ESP_%06X", ESP.getChipId());
-	String hostname;
-	Config.get("wifi.hostname", hostname, hostString);
-	WiFi.hostname(hostname);
+	WiFi.hostname(_hostname);
 	WiFi.begin(_ssid.c_str(), _password.c_str());
 	WiFi.enableSTA(true);
 }
@@ -47,8 +42,21 @@ void Wifi::loop() {
 	state(WiFi.status() == WL_CONNECTED ? CONNECTED : DISCONNECTED);
 }
 
-void Wifi::setConfig(String& ssid, String& password) {
+void Wifi::setConfig(String& ssid, String& password, String& hostname) {
 	_ssid = ssid;
 	_password = password;
+	_hostname = hostname;
+}
+
+const char*  Wifi::getHostname(){
+	return _hostname.c_str();
+}
+
+const char*  Wifi::getSSID(){
+	return _ssid.c_str();
+}
+
+const char*  Wifi::getPassword(){
+	return _password.c_str();
 }
 

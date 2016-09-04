@@ -6,27 +6,31 @@
  */
 
 #include "mDNS.h"
-#include <Config.h>
 
 mDNS::mDNS() :
 		Actor("MDNS") {
+	_port = 1883;
+	_service = "wibo";
 }
 
 mDNS::~mDNS() {
+}
+
+void mDNS::setConfig(String& service, uint16_t port) {
+	_service = service;
+	_port = port;
 }
 
 void mDNS::onWifiConnected(Header hdr) {
 	if (!MDNS.begin(WiFi.hostname().c_str())) {
 		LOGF("Error setting up MDNS responder!");
 	}
-	String service;
-	uint32_t port;
-	Config.get("udp.port",port,1883);
-	Config.get("mdns.service",service,"wibo");
-	MDNS.addService(service, "udp", port);
+
+	MDNS.addService(_service, "udp", _port);
 }
 
 void mDNS::loop() {
 	MDNS.update();
 }
+
 

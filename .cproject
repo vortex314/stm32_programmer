@@ -18,7 +18,7 @@
 					<folderInfo id="cdt.managedbuild.config.gnu.cross.exe.debug.37532321." name="/" resourcePath="">
 						<toolChain id="cdt.managedbuild.toolchain.gnu.cross.exe.debug.476774055" name="Cross GCC" superClass="cdt.managedbuild.toolchain.gnu.cross.exe.debug">
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="cdt.managedbuild.targetPlatform.gnu.cross.1865799589" isAbstract="false" osList="all" superClass="cdt.managedbuild.targetPlatform.gnu.cross"/>
-							<builder buildPath="${workspace_loc:/stm32_programmer}" command="make" id="cdt.managedbuild.builder.gnu.cross.281951202" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.builder.gnu.cross">
+							<builder arguments="WIFI_PSWD='&quot;${WIFI_PSWD}&quot;' WIFI_SSID='&quot;${WIFI_SSID}&quot;'" buildPath="${workspace_loc:/stm32_programmer}" command="make" id="cdt.managedbuild.builder.gnu.cross.281951202" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.builder.gnu.cross">
 								<outputEntries>
 									<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="outputPath" name=""/>
 									<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="outputPath" name="Release"/>
@@ -48,8 +48,8 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1339498969" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__ARDUINO__"/>
 									<listOptionValue builtIn="false" value="ARDUINO"/>
-									<listOptionValue builtIn="false" value="&quot;WIFI_SSID=${WIFI_SSID}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;WIFI_PSWD=${WIFI_PSWD}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_SSID='&quot;${WIFI_SSID}&quot;'&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;WIFI_PSWD='&quot;${WIFI_PSWD}&quot;'&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.16840648" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>

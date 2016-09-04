@@ -166,13 +166,19 @@ private:
 public:
 	static IPAddress _lastAddress;
 	static uint16_t _lastPort;
+	uint16_t _port;
 	UdpServer() :
 			Actor("UdpServer") {
 		connected = false;
+		_port=1883;
+	}
+
+	void setConfig(uint16_t port){
+		_port=port;
 	}
 
 	void onWifiConnect(Header h) {
-		begin(1883);
+		begin(_port);
 		Log.setOutput(udpLog);
 	}
 
@@ -272,6 +278,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 		resp["mode"] =
 				stm32.getMode() == Stm32::M_FLASH ?
 						"APPLICATION" : "BOOTLOADER";
+		resp["baudrate"]=BAUDRATE;
 
 	} else if (cmd.equals("getId")) {
 
@@ -438,6 +445,9 @@ void configMenu() {
 	Config.load(configJson);
 	StaticJsonBuffer<400> jsonConf;
 	JsonObject& object = jsonConf.parseObject(configJson);
+	if ( !object.success()) {
+		LOGF(" parsing eeprom failed ");
+	}
 	String show;
 	while (true) {
 		show = "";
@@ -447,7 +457,7 @@ void configMenu() {
 		Serial.print(show);
 		Serial.println(
 				"\r\n_______________________________________________________________________");
-		Serial.print("\r\n Create, Update, Delete, Save&exit, eXit [cudsx] : ");
+		Serial.print("\r\n Create, Update, Delete, Save, eXit [cudsx] : ");
 		String line;
 		readLine(line, 0);
 		Serial.println("");
@@ -460,16 +470,17 @@ void configMenu() {
 			object[key] = value;
 		} else if (line.equals("s")) {
 			Serial.println("\r\n Saving.. ");
+			show="";
 			object.printTo(show);
 			Serial.println(show);
 			Config.save(show);
-			Serial.println("done.\r\n Exit. ");
-			return;
+			Serial.println("done.\r\n ");
 		} else if (line.equals("d")) {
 			String key;
 			ask("\r key   : ", key, 0);
 			object.remove(key);
 		} else if (line.equals("x")) {
+			Serial.println("\r\n Exit config");
 			return;
 		}
 	}
@@ -483,14 +494,13 @@ void waitConfig() {
 			Serial.println(" input timed out, starting...");
 			break;
 		}
-		Serial.println(" Hit 'x' +Enter for menu :");
+		Serial.printf(" Hit 'x' + Enter for menu within 5 seconds : ");
 		readLine(line, 10000);
 		if (line.equals("x")) {
 			configMenu();
 			return;
 		} else {
-			Serial.println(" invalid input ");
-			Serial.printf(">>%s<<\n", line.c_str());
+			Serial.printf(" invalid input >>%s<< , try again.\n",line.c_str());
 		}
 		line = "";
 	}
@@ -499,29 +509,45 @@ void waitConfig() {
 //________________________________________________Se_________________
 #ifndef WIFI_SSID
 #define WIFI_SSID "YourNetworkSSID"
-#define WIFI_PWD "YourNetworkPassword"
+#endif
+#ifndef WIFI_PSWD
+#define WIFI_PSWD "YourNetworkPassword"
 #endif
 
-extern "C" void setup() {
-	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
-	String ssid, password;
+void loadConfig(){
+	String ssid, password,hostname,service;
+	uint32_t udpPort;
+	char hostString[16] = { 0 };
+	sprintf(hostString, "ESP_%06X", ESP.getChipId());
+
 
 	waitConfig();
 
 	Config.get("uart.baudrate",BAUDRATE,115200);
-
 	Config.get("wifi.ssid", ssid, WIFI_SSID);
-	Config.get("wifi.pswd", password, WIFI_PWD);
-	wifi.setConfig(ssid, password);
+	Config.get("wifi.pswd", password, WIFI_PSWD);
+	Config.get("wifi.hostname", hostname, hostString);
+	Config.get("udp.port",udpPort,1883);
+	Config.get("mdns.service",service,"wibo");
 
-	LOGF(" starting Wifi %s .... ", ssid.c_str());
-	delay(100);
+	wifi.setConfig(ssid, password,hostname);
+	udp.setConfig(udpPort);
+	mdns.setConfig(service,udpPort);
+
+}
+
+
+extern "C" void setup() {
+	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
+	loadConfig();
+
+	LOGF(" starting Wifi host : '%s' on SSID : '%s' '%s' ", wifi.getHostname(),wifi.getSSID(),wifi.getPassword());
+	delay(100);	// flush serial delay
 
 	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
 	wifi.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
 	wifi.on(CONNECT, mdns, (EventHandler) &mDNS::onWifiConnected);
 	wifi.on(CONNECT, udp, (EventHandler) &UdpServer::onWifiConnect);
-//	udp.on(RXD,stm32,(EventHandler) &Stm32::onWifiConnect);
 
 	Actor::initAll();
 	return;
