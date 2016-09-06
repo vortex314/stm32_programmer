@@ -15,12 +15,18 @@
 #include <cstdlib>
 #include <Base64.h>
 #include <Config.h>
+#include <PubSubClient.h>
 
 uint32_t BAUDRATE = 115200;
-Wifi wifi;
+// Wifi wifi;
 LedBlinker led;
 Stm32 stm32;
 mDNS mdns;
+WiFiClient wifi_client;
+IPAddress broker(37, 187, 106, 16);
+PubSubClient client(wifi_client, broker);
+String prefix = "wibo1/bootloader/";
+String subscribe_topic = "put/" + prefix + "#";
 
 int islower(int a) {
 	return (a >= 'a' && a <= 'z');
@@ -170,11 +176,11 @@ public:
 	UdpServer() :
 			Actor("UdpServer") {
 		connected = false;
-		_port=1883;
+		_port = 1883;
 	}
 
-	void setConfig(uint16_t port){
-		_port=port;
+	void setConfig(uint16_t port) {
+		_port = port;
 	}
 
 	void onWifiConnect(Header h) {
@@ -223,26 +229,70 @@ public:
 	}
 };
 
-UdpServer udp;
+// UdpServer udp;
 IPAddress UdpServer::_lastAddress = IPAddress(192, 168, 0, 211);
 uint16_t UdpServer::_lastPort = 1883;
 
 void udpLog(char* str, uint32_t length) {
-	if (udp.isConnected()) {
-		WiFiUDP Udp;
-		Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
-		Udp.write(str, length);
-		Udp.write("\n");
-		Udp.endPacket();
+	if (client.connected()) {
+		str[length] = '\0';
+		String message(str);
+		client.publish(prefix + "system/log", message);
 	}
+	/*	if (udp.isConnected()) {
+	 WiFiUDP Udp;
+	 Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
+	 Udp.write(str, length);
+	 Udp.write("\n");
+	 Udp.endPacket();
+	 }*/
 }
 
-void udpSend(uint8_t* data, uint32_t length) {
-	WiFiUDP Udp;
-	Udp.beginPacket(UdpServer::_lastAddress, UdpServer::_lastPort);
-	Udp.write(data, length);
-	Udp.endPacket();
+void mqttPublish(const char* topic, String message) {
+	if (client.connected())
+		client.publish(prefix + topic, message);
 }
+
+class Publisher: public Actor {
+	int _index;
+public:
+	Publisher() :
+			Actor("Publisher") {
+		_index = 0;
+	}
+	void init() {
+		timeout(1000);
+	}
+
+	void onTimeout(Header hdr) {
+		if (_index == 0) {
+			mqttPublish("system/heap", String(ESP.getFreeHeap(), 10));
+		} else if (_index == 1) {
+			mqttPublish("system/esp_id", String(ESP.getChipId(), 16));
+		} else if (_index == 2) {
+			mqttPublish("system/uptime", String(millis(), 16));
+		} else if (_index == 3) {
+			mqttPublish("system/build", String(__DATE__ " " __TIME__));
+		} else if (_index == 4) {
+			mqttPublish("usart/rxd_count", String(Stm32::_usartRxd, 10));
+		} else if (_index == 5) {
+			mqttPublish("usart/baudrate", String(BAUDRATE, 10));
+		} else if (_index == 6) {
+			mqttPublish("stm32/mode",
+					String(
+							stm32.getMode() == Stm32::M_FLASH ?
+									"APPLICATION" : "BOOTLOADER"));
+		} else  {
+			_index = -1;
+		}
+		_index++;
+		timeout(100);
+	}
+
+	void loop() {
+		if ( timeout()) onTimeout(Header(Event::TIMEOUT));
+	}
+};
 
 void handle(JsonObject& resp, JsonObject& req) {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8E1, SerialMode::SERIAL_FULL);
@@ -278,7 +328,7 @@ void handle(JsonObject& resp, JsonObject& req) {
 		resp["mode"] =
 				stm32.getMode() == Stm32::M_FLASH ?
 						"APPLICATION" : "BOOTLOADER";
-		resp["baudrate"]=BAUDRATE;
+		resp["baudrate"] = BAUDRATE;
 
 	} else if (cmd.equals("getId")) {
 
@@ -374,11 +424,11 @@ void handle(JsonObject& resp, JsonObject& req) {
 		if (req.containsKey("baudrate")) {
 			BAUDRATE = req["baudrate"];
 			resp["baudrate"] = BAUDRATE;
-			Config.set("uart.baudrate",BAUDRATE);
+			Config.set("uart.baudrate", BAUDRATE);
 		}
 		String config;
 		Config.load(config);
-		resp["config"]=config;
+		resp["config"] = config;
 
 	} else {
 		erc = EINVAL;
@@ -389,7 +439,6 @@ void handle(JsonObject& resp, JsonObject& req) {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
 	Serial.swap();
 }
-
 
 // START Normal...
 
@@ -445,7 +494,7 @@ void configMenu() {
 	Config.load(configJson);
 	StaticJsonBuffer<400> jsonConf;
 	JsonObject& object = jsonConf.parseObject(configJson);
-	if ( !object.success()) {
+	if (!object.success()) {
 		LOGF(" parsing eeprom failed ");
 	}
 	String show;
@@ -470,7 +519,7 @@ void configMenu() {
 			object[key] = value;
 		} else if (line.equals("s")) {
 			Serial.println("\r\n Saving.. ");
-			show="";
+			show = "";
 			object.printTo(show);
 			Serial.println(show);
 			Config.save(show);
@@ -500,7 +549,7 @@ void waitConfig() {
 			configMenu();
 			return;
 		} else {
-			Serial.printf(" invalid input >>%s<< , try again.\n",line.c_str());
+			Serial.printf(" invalid input >>%s<< , try again.\n", line.c_str());
 		}
 		line = "";
 	}
@@ -514,46 +563,105 @@ void waitConfig() {
 #define WIFI_PSWD "YourNetworkPassword"
 #endif
 
-void loadConfig(){
-	String ssid, password,hostname,service;
+void loadConfig() {
+	String ssid, password, hostname, service;
 	uint32_t udpPort;
 	char hostString[16] = { 0 };
 	sprintf(hostString, "ESP_%06X", ESP.getChipId());
 
-
 	waitConfig();
 
-	Config.get("uart.baudrate",BAUDRATE,115200);
+	Config.get("uart.baudrate", BAUDRATE, 115200);
 	Config.get("wifi.ssid", ssid, WIFI_SSID);
 	Config.get("wifi.pswd", password, WIFI_PSWD);
 	Config.get("wifi.hostname", hostname, hostString);
-	Config.get("udp.port",udpPort,1883);
-	Config.get("mdns.service",service,"wibo");
+	Config.get("udp.port", udpPort, 1883);
+	Config.get("mdns.service", service, "wibo");
 
-	wifi.setConfig(ssid, password,hostname);
-	udp.setConfig(udpPort);
-	mdns.setConfig(service,udpPort);
+//TODO	wifi.setConfig(ssid, password, hostname);
+//	udp.setConfig(udpPort);
+	mdns.setConfig(service, udpPort);
 
 }
 
+Publisher publisher;
 
 extern "C" void setup() {
 	Serial.begin(BAUDRATE, SerialConfig::SERIAL_8N1, SerialMode::SERIAL_FULL);
+	Serial.setDebugOutput(false);
 	loadConfig();
 
-	LOGF(" starting Wifi host : '%s' on SSID : '%s' '%s' ", wifi.getHostname(),wifi.getSSID(),wifi.getPassword());
+	LOGF(" version : " __DATE__ " " __TIME__);
+
+	//TODO	LOGF(" starting Wifi host : '%s' on SSID : '%s' '%s' ", wifi.getHostname(),
+	//TODO			wifi.getSSID(), wifi.getPassword());
 	delay(100);	// flush serial delay
 
-	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
-	wifi.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
-	wifi.on(CONNECT, mdns, (EventHandler) &mDNS::onWifiConnected);
-	wifi.on(CONNECT, udp, (EventHandler) &UdpServer::onWifiConnect);
+	publisher.on(TIMEOUT, publisher, (EventHandler) &Publisher::onTimeout);
+
+	//TODO	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
+	//TODO	wifi.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
+	//TODO	wifi.on(CONNECT, mdns, (EventHandler) &mDNS::onWifiConnected);
+	//TODO	wifi.on(CONNECT, udp, (EventHandler) &UdpServer::onWifiConnect);
 
 	Actor::initAll();
 	return;
 }
 
+#define BUFFER_SIZE 100
+
+void callback(const MQTT::Publish& pub) {
+	if (pub.topic().endsWith("request")) {
+		String sRequest = pub.payload_string();
+		StaticJsonBuffer<1000> request;
+		JsonObject& req = request.parseObject(sRequest);
+		StaticJsonBuffer<1000> reply;
+		JsonObject& repl = reply.createObject();
+		handle(repl, req);
+		if (!req.success()) {
+			LOGF(" UDP message JSON parsing fails");
+			client.publish("system/log", " UDP message JSON parsing fails");
+			return;
+		} else {
+			handle(repl, req);
+			String str;
+			repl.printTo(str);
+			client.publish(prefix + "bootloader/reply", str);
+		}
+	}
+}
+
 extern "C" void loop() {
 	Actor::eventLoop();
+	if (WiFi.status() != WL_CONNECTED) {
+		Serial.print("Connecting to ");
+		Serial.print(WIFI_SSID);
+		Serial.println("...");
+		WiFi.begin(WIFI_SSID, WIFI_PSWD);
+
+		if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+			LOGF(" still connecting ");
+			return;
+		}
+		LOGF("WiFi connected");
+	}
+
+	if (WiFi.status() == WL_CONNECTED) {
+//	if (wifi.connected()) {
+		if (!client.connected()) {
+			if (client.connect("wibo1", prefix + "system/alive", 1, 0,
+					"false")) {
+				client.publish(prefix + "system/alive", "true");
+				client.set_callback(callback);
+				client.subscribe(subscribe_topic);
+				Log.setOutput(udpLog);
+				LOGF(" mqtt client connected ");
+			} else {
+				LOGF(" mqtt connect failed ")
+			}
+		}
+		if (client.connected())
+			client.loop();
+	}
 }
 

@@ -97,6 +97,18 @@ bool Actor::match(Header src, Header filter) {
 	return false;
 }
 
+uint32_t freeHeap;
+
+void measureHeapBefore(){
+	freeHeap = ESP.getFreeHeap();
+}
+
+void measureHeapAfter(const char* actor){
+	if ( freeHeap > ESP.getFreeHeap() ){
+		LOGF(" leakage heap in %s : %d => %d ",actor,freeHeap,ESP.getFreeHeap());
+	}
+}
+
 void Actor::eventLoop() {
 	Header hdr;
 	// Check event in Queue
@@ -107,19 +119,24 @@ void Actor::eventLoop() {
 //			logHeader(" filter : ", _handlers[i]._filter);
 			if (match(hdr, _handlers[i]._filter)) {
 				LOGF(" calling handler ! %s ", _handlers[i]._actor->name());
-				delay(10);
+				measureHeapBefore();
 				CALL_MEMBER_FN(*_handlers[i]._actor,_handlers[i]._method)(hdr);
+				measureHeapAfter(_handlers[i]._actor->_name);
 			}
 		}
 	}
 	for (int i = 0; i < _actorCount; i++) {
+		measureHeapBefore();
 		_actors[i]->loop();
+		measureHeapAfter(_actors[i]->_name);
 		if (_actors[i]->timeout()) {
 			for (int j = 0; j < _handlerCount; j++) {
 				if (match(Header(_actors[i]->id(), TIMEOUT),
 						_handlers[i]._filter)) {
+					measureHeapBefore();
 					CALL_MEMBER_FN(*_handlers[i]._actor,_handlers[i]._method)(
 							hdr);
+					measureHeapAfter(_handlers[i]._actor->_name);
 				}
 			}
 		}

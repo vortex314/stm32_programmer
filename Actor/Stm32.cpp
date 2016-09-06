@@ -41,13 +41,13 @@ Erc Stm32::setAltSerial(bool flag) {
 	return E_OK;
 }
 /*
-Erc Stm32::setBoot0(bool flag) {
-	if (_boot0 == flag)
-		return E_OK;
-	digitalWrite(PIN_BOOT0, flag);	// 1 : bootloader mode, 0: flash run
-	_boot0 = flag;
-	return E_OK;
-}*/
+ Erc Stm32::setBoot0(bool flag) {
+ if (_boot0 == flag)
+ return E_OK;
+ digitalWrite(PIN_BOOT0, flag);	// 1 : bootloader mode, 0: flash run
+ _boot0 = flag;
+ return E_OK;
+ }*/
 
 void Stm32::init() {
 	pinMode(PIN_RESET, OUTPUT);
@@ -55,7 +55,7 @@ void Stm32::init() {
 	pinMode(PIN_BOOT0, OUTPUT);
 	boot0Flash();
 	_mode = M_SYSTEM;
-	setAltSerial(true);
+//	setAltSerial(true);
 }
 
 Erc Stm32::boot0Flash() {
@@ -165,7 +165,7 @@ Erc Stm32::resetFlash() {
 	delay(10);
 	digitalWrite(PIN_RESET, 1);
 	delay(10);
-	_mode= M_FLASH;
+	_mode = M_FLASH;
 	return E_OK;
 }
 
@@ -176,7 +176,7 @@ Erc Stm32::resetSystem() {
 	digitalWrite(PIN_RESET, 1);
 	delay(10);
 	Serial.write(0x7F);	// send sync for bootloader
-	_mode= M_SYSTEM;
+	_mode = M_SYSTEM;
 	return E_OK;
 }
 
@@ -405,7 +405,7 @@ bool Stm32::timeout() {
 void Stm32::timeout(uint32_t delta) {
 	_timeout = millis() + delta;
 }
-extern void udpSend(uint8_t* data, uint32_t length);
+extern void mqttPublish(const char* topic, String message);
 
 Bytes uartBuffer(256);
 uint32_t Stm32::_usartRxd = 0;
@@ -430,7 +430,11 @@ void Stm32::loop() {
 	if (((lastDataReceived - firstDataReceived) > 100))	// more then 100 msec delay
 		sendNow = true;
 	if (sendNow && uartBuffer.length()) {
-		udpSend( uartBuffer.data(), uartBuffer.length());
+		String msg;
+		uartBuffer.offset(0);
+		while (uartBuffer.hasData())
+			msg.concat((char) uartBuffer.read());
+		mqttPublish("usart/rxd", msg);
 		uartBuffer.clear();
 		sendNow = false;
 	}
