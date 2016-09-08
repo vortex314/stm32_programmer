@@ -104,8 +104,11 @@ void measureHeapBefore(){
 }
 
 void measureHeapAfter(const char* actor){
+	return;
 	if ( freeHeap > ESP.getFreeHeap() ){
 		LOGF(" leakage heap in %s : %d => %d ",actor,freeHeap,ESP.getFreeHeap());
+	} else if ( ESP.getFreeHeap() > freeHeap ) {
+		LOGF(" freeing heap in %s : %d => %d ",actor,freeHeap,ESP.getFreeHeap());
 	}
 }
 

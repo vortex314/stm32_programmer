@@ -5,7 +5,7 @@
 #include <Wifi.h>
 #include <LedBlinker.h>
 #include <WiFiUdp.h>
-#include <ESP8266mDNS.h>
+//#include <ESP8266mDNS.h>
 #include <Stm32.h>
 #include <mDNS.h>
 #include <ctype.h>
@@ -24,7 +24,7 @@ Stm32 stm32;
 mDNS mdns;
 WiFiClient wifi_client;
 IPAddress broker(37, 187, 106, 16);
-PubSubClient client(wifi_client, broker);
+PubSubClient client(wifi_client, "test.mosquitto.org");
 String prefix = "wibo1/bootloader/";
 String subscribe_topic = "put/" + prefix + "#";
 
@@ -160,78 +160,78 @@ unsigned long strtoul(const char *nptr, char **endptr, register int base) {
 
 void handle(JsonObject& resp, JsonObject& req);
 void udpLog(char* str, uint32_t length);
+/*
+ #define UDP_MAX_SIZE	512
 
-#define UDP_MAX_SIZE	512
+ class UdpServer: public Actor, public WiFiUDP {
+ private:
 
-class UdpServer: public Actor, public WiFiUDP {
-private:
+ char buffer[UDP_MAX_SIZE];	//
+ bool connected;
 
-	char buffer[UDP_MAX_SIZE];	//
-	bool connected;
+ public:
+ static IPAddress _lastAddress;
+ static uint16_t _lastPort;
+ uint16_t _port;
+ UdpServer() :
+ Actor("UdpServer") {
+ connected = false;
+ _port = 1883;
+ }
 
-public:
-	static IPAddress _lastAddress;
-	static uint16_t _lastPort;
-	uint16_t _port;
-	UdpServer() :
-			Actor("UdpServer") {
-		connected = false;
-		_port = 1883;
-	}
+ void setConfig(uint16_t port) {
+ _port = port;
+ }
 
-	void setConfig(uint16_t port) {
-		_port = port;
-	}
+ void onWifiConnect(Header h) {
+ begin(_port);
+ Log.setOutput(udpLog);
+ }
 
-	void onWifiConnect(Header h) {
-		begin(_port);
-		Log.setOutput(udpLog);
-	}
+ bool isConnected() {
+ return connected;
+ }
 
-	bool isConnected() {
-		return connected;
-	}
+ void loop() {
+ int length;
+ if (length = parsePacket()) {	// received data
+ connected = true;
+ if (length > UDP_MAX_SIZE) {
+ LOGF(" UDP packet too big");
+ return;
+ }
+ //			LOGF(" UDP rxd %s:%d in packet %d", remoteIP().toString().c_str(),
+ //			 remotePort(), _packetIdx);
+ _lastAddress = remoteIP();
+ _lastPort = remotePort();
 
-	void loop() {
-		int length;
-		if (length = parsePacket()) {	// received data
-			connected = true;
-			if (length > UDP_MAX_SIZE) {
-				LOGF(" UDP packet too big");
-				return;
-			}
-//			LOGF(" UDP rxd %s:%d in packet %d", remoteIP().toString().c_str(),
-//			 remotePort(), _packetIdx);
-			_lastAddress = remoteIP();
-			_lastPort = remotePort();
+ //			LOGF("  %s ", remoteIP().toString().c_str());
+ read(buffer, length); 			// read the packet into the buffer
+ buffer[length] = '\0';
+ StaticJsonBuffer<200> request;
+ JsonObject& req = request.parseObject(buffer);
+ StaticJsonBuffer<1000> reply;
+ JsonObject& repl = reply.createObject();
 
-//			LOGF("  %s ", remoteIP().toString().c_str());
-			read(buffer, length); 			// read the packet into the buffer
-			buffer[length] = '\0';
-			StaticJsonBuffer<200> request;
-			JsonObject& req = request.parseObject(buffer);
-			StaticJsonBuffer<1000> reply;
-			JsonObject& repl = reply.createObject();
+ if (!req.success()) {
+ LOGF(" UDP message JSON parsing fails");
+ return;
+ } else {
+ handle(repl, req);
+ String str;
+ repl.printTo(str);
+ beginPacket(remoteIP(), remotePort());
+ write(str.c_str(), str.length());
+ endPacket();
+ }
+ publish(RXD);
+ }
+ }
+ };
 
-			if (!req.success()) {
-				LOGF(" UDP message JSON parsing fails");
-				return;
-			} else {
-				handle(repl, req);
-				String str;
-				repl.printTo(str);
-				beginPacket(remoteIP(), remotePort());
-				write(str.c_str(), str.length());
-				endPacket();
-			}
-			publish(RXD);
-		}
-	}
-};
-
-// UdpServer udp;
-IPAddress UdpServer::_lastAddress = IPAddress(192, 168, 0, 211);
-uint16_t UdpServer::_lastPort = 1883;
+ // UdpServer udp;
+ IPAddress UdpServer::_lastAddress = IPAddress(192, 168, 0, 211);
+ uint16_t UdpServer::_lastPort = 1883;*/
 
 void udpLog(char* str, uint32_t length) {
 	if (client.connected()) {
@@ -270,7 +270,7 @@ public:
 		} else if (_index == 1) {
 			mqttPublish("system/esp_id", String(ESP.getChipId(), 16));
 		} else if (_index == 2) {
-			mqttPublish("system/uptime", String(millis(), 16));
+			mqttPublish("system/uptime", String(millis(), 10));
 		} else if (_index == 3) {
 			mqttPublish("system/build", String(__DATE__ " " __TIME__));
 		} else if (_index == 4) {
@@ -282,15 +282,18 @@ public:
 					String(
 							stm32.getMode() == Stm32::M_FLASH ?
 									"APPLICATION" : "BOOTLOADER"));
-		} else  {
+		} else if (_index == 7) {
+			mqttPublish("system/alive", "true");
+		} else {
 			_index = -1;
 		}
 		_index++;
-		timeout(100);
+		timeout(500);
 	}
 
 	void loop() {
-		if ( timeout()) onTimeout(Header(Event::TIMEOUT));
+		if (timeout())
+			onTimeout(Header(Event::TIMEOUT));
 	}
 };
 
@@ -323,8 +326,6 @@ void handle(JsonObject& resp, JsonObject& req) {
 		resp["upTime"] = millis();
 		resp["version"] = __DATE__ " " __TIME__;
 		resp["usart.rxd"] = Stm32::_usartRxd;
-		resp["ipaddr"] = UdpServer::_lastAddress.toString();
-		resp["port"] = UdpServer::_lastPort;
 		resp["mode"] =
 				stm32.getMode() == Stm32::M_FLASH ?
 						"APPLICATION" : "BOOTLOADER";
@@ -500,7 +501,8 @@ void configMenu() {
 	String show;
 	while (true) {
 		show = "";
-		object.printTo(show);
+		object.prettyPrintTo(show);
+//		object.printTo(show);
 		Serial.println(
 				"\r\n__________________ Config JSON ________________________________________");
 		Serial.print(show);
@@ -564,8 +566,8 @@ void waitConfig() {
 #endif
 
 void loadConfig() {
-	String ssid, password, hostname, service;
-	uint32_t udpPort;
+	String ssid, password, hostname, service, mqttHost;
+	uint32_t mqttPort;
 	char hostString[16] = { 0 };
 	sprintf(hostString, "ESP_%06X", ESP.getChipId());
 
@@ -575,12 +577,15 @@ void loadConfig() {
 	Config.get("wifi.ssid", ssid, WIFI_SSID);
 	Config.get("wifi.pswd", password, WIFI_PSWD);
 	Config.get("wifi.hostname", hostname, hostString);
-	Config.get("udp.port", udpPort, 1883);
-	Config.get("mdns.service", service, "wibo");
+	Config.get("mqtt.port", mqttPort, 1883);
+	Config.get("mqtt.host", mqttHost, "test.mosquitto.org");
+	Config.get("mqtt.prefix", prefix, "wibo1/bootloader/");
+	subscribe_topic = "put/" + prefix + "#";
 
 //TODO	wifi.setConfig(ssid, password, hostname);
 //	udp.setConfig(udpPort);
-	mdns.setConfig(service, udpPort);
+//	mdns.setConfig(service, udpPort);
+	client.set_server(mqttHost, mqttPort);
 
 }
 
@@ -628,6 +633,8 @@ void callback(const MQTT::Publish& pub) {
 			repl.printTo(str);
 			client.publish(prefix + "bootloader/reply", str);
 		}
+	} else {
+		LOGF(" unknown request %s", pub.payload_string().c_str());
 	}
 }
 
