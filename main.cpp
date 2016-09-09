@@ -5,7 +5,7 @@
 #include <Wifi.h>
 #include <LedBlinker.h>
 #include <WiFiUdp.h>
-//#include <ESP8266mDNS.h>
+#include <ESP8266mDNS.h>
 #include <Stm32.h>
 #include <mDNS.h>
 #include <ctype.h>
@@ -606,7 +606,7 @@ extern "C" void setup() {
 
 	//TODO	wifi.on(CONNECT, led, (EventHandler) &LedBlinker::blinkFast);
 	//TODO	wifi.on(DISCONNECT, led, (EventHandler) &LedBlinker::blinkSlow);
-	//TODO	wifi.on(CONNECT, mdns, (EventHandler) &mDNS::onWifiConnected);
+	// wifi.on(CONNECT, mdns, (EventHandler) &mDNS::onWifiConnected);
 	//TODO	wifi.on(CONNECT, udp, (EventHandler) &UdpServer::onWifiConnect);
 
 	Actor::initAll();
@@ -656,6 +656,9 @@ extern "C" void loop() {
 	if (WiFi.status() == WL_CONNECTED) {
 //	if (wifi.connected()) {
 		if (!client.connected()) {
+			mdns.onWifiConnected(Header(INIT));
+			IPAddress server = mdns.query("mqtt");
+			client.set_server(server,1883);
 			if (client.connect("wibo1", prefix + "system/alive", 1, 0,
 					"false")) {
 				client.publish(prefix + "system/alive", "true");

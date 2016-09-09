@@ -21,6 +21,7 @@ public:
 	void onWifiConnected(Header);
 	void setup(Wifi* src);
 	void setConfig(String& service,uint16_t port);
+	IPAddress query(const char* service);
 };
 
 #endif /* MDNS_H_ */

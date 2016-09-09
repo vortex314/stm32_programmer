@@ -33,4 +33,24 @@ void mDNS::loop() {
 	MDNS.update();
 }
 
+IPAddress mDNS::query(const char* service) {
+	for(int i=0;i< 5;i++) {
+		LOGF(" looking for MQTT host ");
+
+		int number = MDNS.queryService(service, "tcp");
+
+		if (number > 0) {
+
+			for (uint8_t result = 0; result < number; result++) {
+				int port = MDNS.port(result);
+				String host = MDNS.hostname(result);
+				IPAddress IP = MDNS.IP(result);
+				LOGF("Service Found [%u] %s (%u.%u.%u.%u) port = %u\n", result,
+						host.c_str(), IP[0], IP[1], IP[2], IP[3], port);
+				return IP;
+			}
+		}
+	}
+	return IPAddress(37,187,106,16);	// test.mosquitto.org
+}
 
